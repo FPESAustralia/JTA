@@ -119,17 +119,14 @@
      ====================================================== -->
 <div id="screen-home" class="screen active">
   <div style="background: var(--navy); padding: 56px 20px 24px; color: white;">
-    <p style="font-size:11px; opacity:0.6; letter-spacing:1.5px; margin:0 0 6px; text-transform:uppercase;">Aerete</p>
+    <p style="font-size:11px; opacity:0.6; letter-spacing:1.5px; margin:0 0 6px; text-transform:uppercase;">FPES</p>
     <h1 style="font-size:26px; font-weight:800; margin:0 0 4px;">Job Task Analysis</h1>
-    <p style="font-size:13px; opacity:0.75; margin:0;">On-site data capture for iPad</p>
+    <p style="font-size:13px; opacity:0.75; margin:0;">On-site Assessment</p>
   </div>
   <div style="padding:16px;">
     <button class="btn btn-navy" style="margin-bottom:16px;" onclick="goSetup(null)">＋ New Assessment</button>
     <p style="font-size:13px; font-weight:600; color:#374151; margin:0 0 8px;">Saved Assessments</p>
     <div id="home-list"></div>
-    <p style="font-size:11px; color:#9ca3af; text-align:center; margin-top:20px;">
-      Tip: In Safari, tap Share → "Add to Home Screen" to use like an app.
-    </p>
   </div>
 </div>
 
@@ -376,10 +373,10 @@ function renderSetup() {
         ${tf('Start Time', 'timeStart', s.timeStart, 'time')}
         ${tf('End Time', 'timeEnd', s.timeEnd, 'time')}
         ${tf('Referring Party', 'referringParty', s.referringParty)}
-        ${sf('Assessment Method', 'method', s.method, ['On-site','Remote','Hybrid'])}
-        ${sf('SME Consulted?', 'smeConsulted', s.smeConsulted, ['N','Y'])}
+        ${setupSel('Assessment Method', 'method', s.method, ['On-site','Remote','Hybrid'])}
+        ${setupSel('SME Consulted?', 'smeConsulted', s.smeConsulted, ['N','Y'])}
         ${tf('SME Name & Title', 'smeName', s.smeName)}
-        ${sf('SME Signature Obtained?', 'smeSignature', s.smeSignature, ['N','Y'])}
+        ${setupSel('SME Signature Obtained?', 'smeSignature', s.smeSignature, ['N','Y'])}
       </div>
     </div>
     <div id="positions-wrap">
@@ -398,7 +395,7 @@ function tf(label, key, val, type='text') {
   </div>`;
 }
 
-function sf(label, key, val, opts) {
+function setupSel(label, key, val, opts) {
   return `<div class="text-field">
     <label>${label}</label>
     <select onchange="setSetup('${key}',this.value)">
