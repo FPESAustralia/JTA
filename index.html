@@ -1,0 +1,1226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="JTA Capture">
+  <title>JTA Capture</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css">
+  <style>
+    :root {
+      --navy: #1a3558;
+      --blue: #2563eb;
+      --green: #059669;
+      --amber: #d97706;
+      --red: #dc2626;
+    }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif;
+      background: #f0f4f8; margin: 0; padding: 0;
+    }
+    input, select, textarea { font-size: 16px !important; }
+    .screen { display: none; }
+    .screen.active { display: block; min-height: 100vh; }
+    .card { background: white; border-radius: 12px; margin-bottom: 12px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+    .card-hdr {
+      background: var(--navy); color: white; padding: 13px 16px;
+      font-weight: 600; font-size: 14px; display: flex; justify-content: space-between;
+      align-items: center; cursor: pointer; user-select: none;
+    }
+    .chevron { transition: transform 0.2s; display: inline-block; }
+    .card-hdr.closed .chevron { transform: rotate(-90deg); }
+    .freq-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 9px 0; border-bottom: 1px solid #f3f4f6;
+    }
+    .freq-row:last-child { border-bottom: none; }
+    .freq-label { font-size: 13px; color: #374151; flex: 1; padding-right: 10px; line-height: 1.3; }
+    .freq-sel {
+      border: 1.5px solid #d1d5db; border-radius: 8px; padding: 7px 8px;
+      background: white; min-width: 82px; -webkit-appearance: none;
+      appearance: none; font-size: 13px; text-align: center; cursor: pointer;
+    }
+    .freq-sel.filled { border-color: #6ee7b7; background: #f0fdf4; }
+    .btn { border-radius: 10px; padding: 13px 18px; font-weight: 600; font-size: 15px; border: none; cursor: pointer; display: block; width: 100%; text-align: center; transition: opacity 0.15s; }
+    .btn:active { opacity: 0.8; }
+    .btn-navy { background: var(--navy); color: white; }
+    .btn-outline { background: white; color: var(--navy); border: 2px solid var(--navy); }
+    .btn-green { background: var(--green); color: white; }
+    .btn-red { background: #fee2e2; color: #991b1b; }
+    .btn-sm { padding: 8px 14px; font-size: 13px; border-radius: 8px; width: auto; display: inline-block; }
+    .badge { display: inline-flex; align-items: center; padding: 4px 12px; border-radius: 20px; font-size: 13px; font-weight: 700; }
+    .badge-heavy { background: #fee2e2; color: #991b1b; }
+    .badge-medium { background: #fef3c7; color: #92400e; }
+    .badge-light { background: #d1fae5; color: #065f46; }
+    .badge-high { background: #fee2e2; color: #991b1b; }
+    .badge-low { background: #d1fae5; color: #065f46; }
+    .task-nav-bar {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+      padding: 12px 16px; background: white; border-top: 1px solid #e5e7eb;
+      position: sticky; bottom: 0; z-index: 10;
+    }
+    .photo-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+    .photo-item { position: relative; aspect-ratio: 1; }
+    .photo-item img { width: 100%; height: 100%; object-fit: cover; border-radius: 8px; display: block; }
+    .photo-del {
+      position: absolute; top: 3px; right: 3px; background: rgba(220,38,38,0.9);
+      color: white; border: none; border-radius: 50%; width: 22px; height: 22px;
+      font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; line-height: 1;
+    }
+    .prog-bar { height: 3px; background: rgba(255,255,255,0.3); border-radius: 2px; overflow: hidden; margin-top: 8px; }
+    .prog-fill { height: 100%; background: #60a5fa; border-radius: 2px; transition: width 0.3s; }
+    .sum-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .sum-table th { background: var(--navy); color: white; padding: 9px 10px; text-align: left; font-weight: 600; font-size: 12px; }
+    .sum-table td { padding: 9px 10px; border-bottom: 1px solid #e5e7eb; vertical-align: middle; }
+    .sum-table tr:nth-child(even) td { background: #f9fafb; }
+    .section-subhdr { font-size: 11px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.6px; margin: 12px 0 6px; padding-bottom: 4px; border-bottom: 1px solid #e5e7eb; }
+    .check-row { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid #f3f4f6; }
+    .check-row:last-child { border-bottom: none; }
+    .check-row label { font-size: 13px; color: #374151; cursor: pointer; flex: 1; }
+    input[type=checkbox] { width: 20px; height: 20px; accent-color: var(--blue); flex-shrink: 0; cursor: pointer; }
+    .text-field { padding: 8px 0; border-bottom: 1px solid #f3f4f6; }
+    .text-field label { font-size: 11px; color: #6b7280; display: block; margin-bottom: 3px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px; }
+    .text-field input, .text-field select, .text-field textarea {
+      width: 100%; border: 1.5px solid #d1d5db; border-radius: 8px;
+      padding: 8px 10px; font-size: 14px; background: white;
+    }
+    .text-field input:focus, .text-field select:focus, .text-field textarea:focus {
+      border-color: var(--blue); outline: none;
+    }
+    .rating-panel {
+      display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-start;
+    }
+    .rating-item { flex: 1; min-width: 120px; }
+    .rating-item .lbl { font-size: 11px; color: #9ca3af; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 5px; }
+    /* Print styles */
+    @media print {
+      .no-print { display: none !important; }
+      body { background: white !important; }
+      .card { box-shadow: none !important; border: 1px solid #ccc !important; page-break-inside: avoid; margin-bottom: 8px; }
+      .card-hdr { background: #1a3558 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      #screen-home, #screen-setup, #screen-assess { display: none !important; }
+      #screen-summary { display: block !important; min-height: auto !important; }
+      .sum-table th { background: #1a3558 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .badge-heavy { background: #fee2e2 !important; color: #991b1b !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .badge-medium { background: #fef3c7 !important; color: #92400e !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .badge-light { background: #d1fae5 !important; color: #065f46 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .badge-high { background: #fee2e2 !important; color: #991b1b !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .badge-low { background: #d1fae5 !important; color: #065f46 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ======================================================
+     HOME SCREEN
+     ====================================================== -->
+<div id="screen-home" class="screen active">
+  <div style="background: var(--navy); padding: 56px 20px 24px; color: white;">
+    <p style="font-size:11px; opacity:0.6; letter-spacing:1.5px; margin:0 0 6px; text-transform:uppercase;">Aerete</p>
+    <h1 style="font-size:26px; font-weight:800; margin:0 0 4px;">Job Task Analysis</h1>
+    <p style="font-size:13px; opacity:0.75; margin:0;">On-site data capture for iPad</p>
+  </div>
+  <div style="padding:16px;">
+    <button class="btn btn-navy" style="margin-bottom:16px;" onclick="goSetup(null)">＋ New Assessment</button>
+    <p style="font-size:13px; font-weight:600; color:#374151; margin:0 0 8px;">Saved Assessments</p>
+    <div id="home-list"></div>
+    <p style="font-size:11px; color:#9ca3af; text-align:center; margin-top:20px;">
+      Tip: In Safari, tap Share → "Add to Home Screen" to use like an app.
+    </p>
+  </div>
+</div>
+
+<!-- ======================================================
+     SETUP SCREEN
+     ====================================================== -->
+<div id="screen-setup" class="screen">
+  <div style="background: var(--navy); padding: 56px 16px 16px; color:white;" class="no-print">
+    <div style="display:flex; align-items:center; gap:12px;">
+      <button onclick="goHome()" style="background:none;border:none;color:white;font-size:24px;cursor:pointer;padding:0;line-height:1;">‹</button>
+      <div>
+        <h2 style="font-size:18px; font-weight:700; margin:0;">Assessment Setup</h2>
+        <p style="font-size:12px; opacity:0.75; margin:0;">Admin configures before the site visit</p>
+      </div>
+    </div>
+  </div>
+  <div style="padding:16px;" id="setup-content"></div>
+</div>
+
+<!-- ======================================================
+     ASSESS SCREEN
+     ====================================================== -->
+<div id="screen-assess" class="screen">
+  <div style="background: var(--navy); padding: 50px 16px 14px; color:white;" class="no-print">
+    <div style="display:flex; align-items:flex-start; gap:10px; margin-bottom:6px;">
+      <button onclick="goSummary()" style="background:none;border:none;color:white;font-size:24px;cursor:pointer;padding:2px 0 0;line-height:1;flex-shrink:0;">‹</button>
+      <div style="flex:1; min-width:0;">
+        <div id="assess-pos-label" style="font-size:11px; opacity:0.65; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"></div>
+        <div id="assess-task-label" style="font-size:17px; font-weight:700; line-height:1.25; word-break:break-word;"></div>
+      </div>
+      <div id="assess-progress-label" style="font-size:12px; opacity:0.65; flex-shrink:0; padding-top:4px;"></div>
+    </div>
+    <div class="prog-bar">
+      <div class="prog-fill" id="assess-prog-fill" style="width:0%;"></div>
+    </div>
+  </div>
+  <div style="padding:12px 12px 130px;" id="assess-body"></div>
+  <div class="task-nav-bar no-print">
+    <button class="btn btn-outline" onclick="navTask(-1)">◀ Previous</button>
+    <button class="btn btn-navy" onclick="navTask(1)">Next ▶</button>
+  </div>
+</div>
+
+<!-- ======================================================
+     SUMMARY SCREEN
+     ====================================================== -->
+<div id="screen-summary" class="screen">
+  <div style="background: var(--navy); padding: 50px 16px 16px; color:white;" class="no-print">
+    <div style="display:flex; align-items:center; gap:12px;">
+      <button onclick="goHome()" style="background:none;border:none;color:white;font-size:24px;cursor:pointer;padding:0;line-height:1;">‹</button>
+      <div>
+        <h2 style="font-size:18px; font-weight:700; margin:0;">Summary</h2>
+        <div id="summary-sub" style="font-size:12px; opacity:0.75;"></div>
+      </div>
+    </div>
+  </div>
+  <div style="padding:16px;" id="summary-content"></div>
+</div>
+
+<!-- ======================================================
+     JAVASCRIPT
+     ====================================================== -->
+<script>
+'use strict';
+
+// ── State ──────────────────────────────────────────────────────────────────────
+let allAssessments = [];
+let cur = null; // current assessment being worked on
+let curPosIdx = 0;
+let curTaskIdx = 0;
+
+// ── Persistence ────────────────────────────────────────────────────────────────
+function saveAll() {
+  try {
+    localStorage.setItem('jta_all', JSON.stringify(allAssessments));
+    if (cur) localStorage.setItem('jta_cur', JSON.stringify(cur));
+  } catch(e) { console.warn('Save failed:', e); }
+}
+
+function sanitiseAssessment(a) {
+  // Ensure every assessment has valid structure — guards against partial saves
+  if (!a) return null;
+  if (!a.setup) a.setup = {};
+  if (!Array.isArray(a.positions)) a.positions = [];
+  a.positions.forEach(p => {
+    if (!p) return;
+    if (!Array.isArray(p.tasks)) p.tasks = [];
+    p.tasks.forEach(t => { if (!t.data) t.data = {}; });
+  });
+  return a;
+}
+
+function loadAll() {
+  try {
+    const a = localStorage.getItem('jta_all');
+    if (a) {
+      const parsed = JSON.parse(a);
+      allAssessments = Array.isArray(parsed) ? parsed.map(sanitiseAssessment).filter(Boolean) : [];
+    }
+    const c = localStorage.getItem('jta_cur');
+    if (c) cur = sanitiseAssessment(JSON.parse(c));
+  } catch(e) { console.warn('JTA load error:', e); }
+}
+
+function saveCurToAll() {
+  if (!cur) return;
+  cur.lastModified = new Date().toISOString();
+  const idx = allAssessments.findIndex(a => a.id === cur.id);
+  if (idx >= 0) allAssessments[idx] = JSON.parse(JSON.stringify(cur));
+  else allAssessments.push(JSON.parse(JSON.stringify(cur)));
+  saveAll();
+}
+
+// ── Screens ────────────────────────────────────────────────────────────────────
+function showScreen(name) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-' + name).classList.add('active');
+  window.scrollTo(0, 0);
+}
+
+function goHome() {
+  renderHome();
+  showScreen('home');
+}
+
+function goSetup(id) {
+  if (id === null) {
+    cur = {
+      id: 'jta_' + Date.now(),
+      created: new Date().toISOString(),
+      lastModified: new Date().toISOString(),
+      setup: {
+        org: '', site: '', address: '', cityState: '',
+        siteManager: '', siteContact: '',
+        injuryContact: '', hrContact: '',
+        assessor: '', qualification: '', ahpra: '',
+        date: new Date().toISOString().slice(0,10),
+        timeStart: '', timeEnd: '',
+        referringParty: '', method: 'On-site',
+        smeConsulted: 'N', smeName: '', smeSignature: 'N'
+      },
+      positions: []
+    };
+  } else {
+    const found = allAssessments.find(a => a.id === id);
+    if (found) cur = JSON.parse(JSON.stringify(found));
+  }
+  renderSetup();
+  showScreen('setup');
+}
+
+function goAssess() {
+  if (!cur || !Array.isArray(cur.positions) || cur.positions.length === 0) { goHome(); return; }
+  // Start at first incomplete task
+  curPosIdx = 0; curTaskIdx = 0;
+  outer: for (let p = 0; p < cur.positions.length; p++) {
+    const pos = cur.positions[p];
+    if (!pos || !Array.isArray(pos.tasks)) continue;
+    for (let t = 0; t < pos.tasks.length; t++) {
+      if (pos.tasks[t] && !pos.tasks[t].completed) {
+        curPosIdx = p; curTaskIdx = t; break outer;
+      }
+    }
+  }
+  renderAssessTask();
+  showScreen('assess');
+}
+
+function goSummary() {
+  saveCurToAll();
+  renderSummary();
+  showScreen('summary');
+}
+
+// ── Home Screen ────────────────────────────────────────────────────────────────
+function renderHome() {
+  const el = document.getElementById('home-list');
+  if (allAssessments.length === 0) {
+    el.innerHTML = '<div style="text-align:center;padding:32px 16px;color:#9ca3af;font-size:14px;">No assessments saved yet.<br>Tap above to create one.</div>';
+    return;
+  }
+  el.innerHTML = allAssessments
+    .slice().sort((a,b) => (b.lastModified||b.created||'').localeCompare(a.lastModified||a.created||''))
+    .map(a => {
+      const positions = Array.isArray(a.positions) ? a.positions : [];
+      const total = positions.reduce((n,p) => n + (Array.isArray(p.tasks) ? p.tasks.length : 0), 0);
+      const done = positions.reduce((n,p) => n + (Array.isArray(p.tasks) ? p.tasks.filter(t=>t&&t.completed).length : 0), 0);
+      const pct = total > 0 ? Math.round(done/total*100) : 0;
+      const d = a.setup.date ? new Date(a.setup.date).toLocaleDateString('en-AU', {day:'numeric',month:'short',year:'numeric'}) : '';
+      return `
+        <div class="card">
+          <div style="padding:14px 16px;">
+            <div style="font-weight:700; font-size:15px; color:#111; margin-bottom:2px;">${esc(a.setup.org||'Untitled Assessment')}</div>
+            <div style="font-size:12px; color:#6b7280;">${esc(a.setup.site||'')}${a.setup.site&&d?' · ':''}${d}</div>
+            <div style="font-size:12px; color:#6b7280; margin-top:2px;">${a.positions.length} position(s) · ${total} task(s) · <span style="color:${pct===100?'#059669':'#d97706'};font-weight:600;">${pct}% complete</span></div>
+            <div style="height:4px;background:#e5e7eb;border-radius:2px;margin:8px 0;overflow:hidden;"><div style="height:100%;background:${pct===100?'#059669':'#3b82f6'};width:${pct}%;border-radius:2px;"></div></div>
+            <div style="display:flex; gap:8px; margin-top:6px; flex-wrap:wrap;">
+              <button class="btn btn-navy btn-sm" onclick="openAssessment('${a.id}')">Open</button>
+              <button class="btn btn-outline btn-sm" onclick="goSetup('${a.id}')">Edit Setup</button>
+              <button class="btn btn-sm btn-red" onclick="deleteAssessment('${a.id}')">Delete</button>
+            </div>
+          </div>
+        </div>`;
+    }).join('');
+}
+
+function openAssessment(id) {
+  const found = allAssessments.find(a => a.id === id);
+  if (found) { cur = JSON.parse(JSON.stringify(found)); goSummary(); }
+}
+
+function deleteAssessment(id) {
+  if (!confirm('Delete this assessment? This cannot be undone.')) return;
+  allAssessments = allAssessments.filter(a => a.id !== id);
+  if (cur && cur.id === id) cur = null;
+  saveAll();
+  renderHome();
+}
+
+// ── Setup Screen ───────────────────────────────────────────────────────────────
+function renderSetup() {
+  const s = cur.setup;
+  let html = `
+    <div class="card">
+      <div class="card-hdr" onclick="toggleCard(this)">📋 Organisation &amp; Site Details <span class="chevron">▼</span></div>
+      <div class="card-body" style="padding:12px 16px;">
+        ${tf('Organisation / Employer Name *', 'org', s.org)}
+        ${tf('Site / Facility Name', 'site', s.site)}
+        ${tf('Site Address', 'address', s.address)}
+        ${tf('City / State / Postcode', 'cityState', s.cityState)}
+        ${tf('Site Manager Name', 'siteManager', s.siteManager)}
+        ${tf('Site Manager Contact', 'siteContact', s.siteContact)}
+        ${tf('Injury Management Contact', 'injuryContact', s.injuryContact)}
+        ${tf('HR / P&amp;C Contact', 'hrContact', s.hrContact)}
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-hdr" onclick="toggleCard(this)">🧑‍⚕️ Assessment Details <span class="chevron">▼</span></div>
+      <div class="card-body" style="padding:12px 16px;">
+        ${tf('Assessor Name', 'assessor', s.assessor)}
+        ${tf('Qualification', 'qualification', s.qualification)}
+        ${tf('AHPRA / Registration No.', 'ahpra', s.ahpra)}
+        ${tf('Date of Assessment', 'date', s.date, 'date')}
+        ${tf('Start Time', 'timeStart', s.timeStart, 'time')}
+        ${tf('End Time', 'timeEnd', s.timeEnd, 'time')}
+        ${tf('Referring Party', 'referringParty', s.referringParty)}
+        ${sf('Assessment Method', 'method', s.method, ['On-site','Remote','Hybrid'])}
+        ${sf('SME Consulted?', 'smeConsulted', s.smeConsulted, ['N','Y'])}
+        ${tf('SME Name & Title', 'smeName', s.smeName)}
+        ${sf('SME Signature Obtained?', 'smeSignature', s.smeSignature, ['N','Y'])}
+      </div>
+    </div>
+    <div id="positions-wrap">
+      ${cur.positions.map((p,pi) => posSetupCard(p, pi)).join('')}
+    </div>
+    <button class="btn btn-outline" style="margin-bottom:10px;" onclick="addPosition()">＋ Add Position</button>
+    <button class="btn btn-navy" style="margin-bottom:24px;" onclick="saveAndStart()">Save &amp; Start Assessment →</button>
+  `;
+  document.getElementById('setup-content').innerHTML = html;
+}
+
+function tf(label, key, val, type='text') {
+  return `<div class="text-field">
+    <label>${label}</label>
+    <input type="${type}" value="${esc(val||'')}" oninput="setSetup('${key}',this.value)">
+  </div>`;
+}
+
+function sf(label, key, val, opts) {
+  return `<div class="text-field">
+    <label>${label}</label>
+    <select onchange="setSetup('${key}',this.value)">
+      ${opts.map(o=>`<option value="${o}" ${o===val?'selected':''}>${o}</option>`).join('')}
+    </select>
+  </div>`;
+}
+
+function posSetupCard(pos, pi) {
+  return `
+    <div class="card" id="pos-card-${pi}">
+      <div class="card-hdr" onclick="toggleCard(this)">
+        📌 Position ${pi+1}: <span id="pos-lbl-${pi}">${esc(pos.title||'Untitled')}</span>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="card-body" style="padding:12px 16px;">
+        <div class="text-field" style="border-bottom:1px solid #f3f4f6; padding-bottom:10px; margin-bottom:10px;">
+          <label>Position Title *</label>
+          <input type="text" value="${esc(pos.title||'')}" placeholder="e.g. Assistant in Nursing"
+            oninput="updatePosTitle(${pi},this.value)">
+        </div>
+        <p style="font-size:12px;font-weight:600;color:#6b7280;margin:0 0 6px;">Tasks (up to 25)</p>
+        <div id="tasks-wrap-${pi}">
+          ${pos.tasks.map((t,ti)=>taskRow(t,pi,ti)).join('')}
+        </div>
+        <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
+          ${pos.tasks.length < 25 ? `<button class="btn btn-outline btn-sm" onclick="addTask(${pi})">＋ Add Task</button>` : ''}
+          <button class="btn btn-sm btn-red" onclick="removePos(${pi})">Remove Position</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+function taskRow(task, pi, ti) {
+  return `
+    <div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid #f3f4f6;" id="tr-${pi}-${ti}">
+      <span style="font-size:11px;color:#9ca3af;min-width:26px;">${pi+1}.${ti+1}</span>
+      <input type="text" value="${esc(task.name||'')}" placeholder="Task name"
+        oninput="updateTaskName(${pi},${ti},this.value)"
+        style="flex:1;border:1.5px solid #d1d5db;border-radius:8px;padding:7px 10px;font-size:14px;">
+      <span style="font-size:12px;${task.completed?'color:#059669':'color:#d97706'};">${task.completed?'✓':'○'}</span>
+      <button onclick="removeTask(${pi},${ti})" style="background:none;border:none;color:#ef4444;font-size:18px;cursor:pointer;padding:0 2px;">×</button>
+    </div>`;
+}
+
+function setSetup(key, val) {
+  cur.setup[key] = val;
+  saveAll();
+}
+
+function updatePosTitle(pi, val) {
+  cur.positions[pi].title = val;
+  const el = document.getElementById('pos-lbl-' + pi);
+  if (el) el.textContent = val || 'Untitled';
+  saveAll();
+}
+
+function updateTaskName(pi, ti, val) {
+  cur.positions[pi].tasks[ti].name = val;
+  saveAll();
+}
+
+function addPosition() {
+  if (cur.positions.length >= 20) { alert('Maximum 20 positions per assessment.'); return; }
+  cur.positions.push({ id: 'pos_' + Date.now(), title: '', tasks: [] });
+  saveAll();
+  renderSetup();
+}
+
+function removePos(pi) {
+  if (!confirm('Remove this position and all its tasks?')) return;
+  cur.positions.splice(pi, 1);
+  saveAll();
+  renderSetup();
+}
+
+function addTask(pi) {
+  const pos = cur.positions[pi];
+  if (pos.tasks.length >= 25) { alert('Maximum 25 tasks per position.'); return; }
+  pos.tasks.push({ id: 'task_' + Date.now(), name: '', completed: false, data: {} });
+  saveAll();
+  renderSetup();
+}
+
+function removeTask(pi, ti) {
+  cur.positions[pi].tasks.splice(ti, 1);
+  saveAll();
+  renderSetup();
+}
+
+function saveAndStart() {
+  if (!cur.setup.org.trim()) { alert('Please enter the Organisation / Employer Name.'); return; }
+  if (cur.positions.length === 0) { alert('Please add at least one position.'); return; }
+  if (cur.positions.some(p => !p.title.trim())) { alert('Please name all positions.'); return; }
+  if (cur.positions.some(p => p.tasks.length === 0)) { alert('Each position needs at least one task.'); return; }
+  if (cur.positions.some(p => p.tasks.some(t => !t.name.trim()))) { alert('Please name all tasks, or remove blank ones.'); return; }
+  saveCurToAll();
+  goAssess();
+}
+
+// ── Assess Screen ──────────────────────────────────────────────────────────────
+function renderAssessTask() {
+  const pos = cur.positions[curPosIdx];
+  const task = pos.tasks[curTaskIdx];
+  const d = task.data || {};
+
+  // Header
+  document.getElementById('assess-pos-label').textContent = pos.title;
+  document.getElementById('assess-task-label').textContent = `${curPosIdx+1}.${curTaskIdx+1}  ${task.name}`;
+
+  // Progress
+  let total = 0, done = 0;
+  (cur.positions||[]).forEach(p => { const tasks=Array.isArray(p.tasks)?p.tasks:[]; total+=tasks.length; done+=tasks.filter(t=>t&&t.completed).length; });
+  const pct = total > 0 ? Math.round(done/total*100) : 0;
+  document.getElementById('assess-prog-fill').style.width = pct + '%';
+  document.getElementById('assess-progress-label').textContent = `${done}/${total}`;
+
+  // Build form
+  document.getElementById('assess-body').innerHTML = `
+
+    <!-- COMPLETE TOGGLE -->
+    <div class="card">
+      <div style="padding:14px 16px; display:flex; align-items:center; justify-content:space-between;">
+        <div>
+          <div style="font-weight:600;font-size:15px;">Mark task complete</div>
+          <div style="font-size:12px;color:#9ca3af;">Tick when all fields are filled</div>
+        </div>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+          <span style="font-size:13px;font-weight:600;color:${task.completed?'#059669':'#d97706'};">${task.completed?'✓ Done':'Pending'}</span>
+          <input type="checkbox" ${task.completed?'checked':''} onchange="setCompleted(this.checked)"
+            style="width:26px;height:26px;accent-color:#059669;cursor:pointer;">
+        </label>
+      </div>
+    </div>
+
+    <!-- AUTO RATINGS -->
+    <div class="card">
+      <div class="card-hdr" onclick="toggleCard(this)" style="background:#1e3a5f;">
+        ⚡ Auto-Calculated Ratings <span class="chevron">▼</span>
+      </div>
+      <div class="card-body" style="padding:14px 16px;">
+        <div class="rating-panel">
+          <div class="rating-item">
+            <div class="lbl">Physical Rating</div>
+            <div id="r-physical">${physBadge(calcPhysical(d))}</div>
+            <div id="r-physical-note" style="font-size:11px;color:#9ca3af;margin-top:4px;">${physNote(calcPhysical(d))}</div>
+          </div>
+          <div class="rating-item">
+            <div class="lbl">Psychosocial Rating</div>
+            <div id="r-psych">${psychBadge(calcPsych(d))}</div>
+            <div id="r-psych-note" style="font-size:11px;color:#9ca3af;margin-top:4px;">${psychNote(calcPsych(d))}</div>
+          </div>
+        </div>
+        <p style="font-size:11px;color:#d97706;margin:10px 0 0;background:#fef3c7;padding:8px 10px;border-radius:6px;">
+          ⚠ Ratings auto-update as you complete the Lifting and Psychosocial sections below. Review before marking complete.
+        </p>
+      </div>
+    </div>
+
+    <!-- PHYSICAL DEMANDS -->
+    <div class="card">
+      <div class="card-hdr" onclick="toggleCard(this)">1 · Physical Demands <span class="chevron">▼</span></div>
+      <div class="card-body" style="padding:10px 16px;">
+        <p style="font-size:11px;color:#9ca3af;margin:0 0 8px;">C = Constant · F = Frequent · O = Occasional · R = Rare · NA = Not Applicable</p>
+        ${fr('Bending','physical.bending',d)}
+        ${fr('Twisting','physical.twisting',d)}
+        ${fr('Squatting','physical.squatting',d)}
+        ${fr('Single Arm Above Shoulder','physical.singleArmAbove',d)}
+        ${fr('Single Arm Below Shoulder','physical.singleArmBelow',d)}
+        ${fr('Both Arms Above Shoulder','physical.bothArmsAbove',d)}
+        ${fr('Both Arms Below Shoulder','physical.bothArmsBelow',d)}
+        ${fr('Gripping / Fine Motor','physical.gripping',d)}
+        ${fr('Standing','physical.standing',d)}
+        ${fr('Walking','physical.walking',d)}
+        ${fr('Climbing (stairs / ladders)','physical.climbing',d)}
+        ${fr('Sitting','physical.sitting',d)}
+        ${yn('Control over lifting amount &amp; frequency?','physical.liftingControl',d)}
+      </div>
+    </div>
+
+    <!-- LIFTING -->
+    <div class="card">
+      <div class="card-hdr" onclick="toggleCard(this)">2 · Push / Pull &amp; Lifting Demands <span class="chevron">▼</span></div>
+      <div class="card-body" style="padding:10px 16px;">
+        <p style="font-size:11px;color:#9ca3af;margin:0 0 10px;">Rate frequency for each weight category. These fields drive the Physical Rating above.</p>
+        <div style="overflow-x:auto; -webkit-overflow-scrolling:touch;">
+          ${liftTable(d)}
+        </div>
+      </div>
+    </div>
+
+    <!-- PSYCHOSOCIAL -->
+    <div class="card">
+      <div class="card-hdr" onclick="toggleCard(this)">3 · Cognitive &amp; Psychosocial Demands <span class="chevron">▼</span></div>
+      <div class="card-body" style="padding:10px 16px;">
+        ${fr('Stakeholder / Public Interaction','psych.stakeholder',d)}
+        ${fr('Follow Instruction','psych.followInstruction',d)}
+        ${fr('Work Autonomously','psych.autonomous',d)}
+        ${fr('Exposure to Fatigue','psych.fatigue',d)}
+        ${fr('Working Memory','psych.workingMemory',d)}
+        ${fr('Long Term Memory','psych.longTermMemory',d)}
+        ${fr('Exposure to Harmful Behaviours','psych.harmfulBehaviours',d)}
+        ${fr('Exposure to Traumatic Events','psych.traumaticEvents',d)}
+        ${fr('Work Remotely / Isolation','psych.isolation',d)}
+        ${fr('Job Demands','psych.jobDemands',d)}
+        ${fr('Workplace Environment','psych.workplaceEnv',d)}
+      </div>
+    </div>
+
+    <!-- ENVIRONMENTAL -->
+    <div class="card">
+      <div class="card-hdr closed" onclick="toggleCard(this)">4 · Environmental Conditions <span class="chevron" style="transform:rotate(-90deg);">▼</span></div>
+      <div class="card-body" style="padding:10px 16px; display:none;">
+        <div class="section-subhdr">Work Location</div>
+        ${cb('Indoor','env.indoor',d)}
+        ${cb('Outdoor','env.outdoor',d)}
+        ${cb('Mixed Indoor / Outdoor','env.mixed',d)}
+        ${cb('Confined Spaces','env.confined',d)}
+        ${cb('Elevated Surfaces / Heights','env.elevated',d)}
+        <div class="section-subhdr">Surfaces</div>
+        ${cb('Flat / Level Surface','env.flat',d)}
+        ${cb('Uneven Ground','env.uneven',d)}
+        ${cb('Inclines / Slopes','env.inclines',d)}
+        ${cb('Slippery Surfaces','env.slippery',d)}
+        ${cb('Wet Surfaces','env.wet',d)}
+        <div class="section-subhdr">Temperature &amp; Climate</div>
+        ${cb('Ambient (controlled) Temperature','env.ambient',d)}
+        ${cb('Hot Environment (&gt;28°C)','env.hot',d)}
+        ${cb('Cold Environment (&lt;10°C)','env.cold',d)}
+        ${cb('Direct Sunlight Exposure','env.sunlight',d)}
+        ${cb('Wind / Weather Exposure','env.wind',d)}
+        <div class="section-subhdr">Noise &amp; Vibration</div>
+        ${cb('Ambient Noise (&lt;70 dB)','env.noiseAmbient',d)}
+        ${cb('Moderate Noise (70–85 dB)','env.noiseModerate',d)}
+        ${cb('High Noise (&gt;85 dB – HPE required)','env.noiseHigh',d)}
+        ${cb('Hand-Arm Vibration (HAV)','env.hav',d)}
+        ${cb('Whole-Body Vibration (WBV)','env.wbv',d)}
+        <div class="section-subhdr">Lighting &amp; Visibility</div>
+        ${cb('Adequate Natural Lighting','env.naturalLight',d)}
+        ${cb('Artificial Lighting Required','env.artificialLight',d)}
+        ${cb('Glare Concerns','env.glare',d)}
+        ${cb('Low-Light / Night Work','env.lowLight',d)}
+        ${cb('High-Visibility PPE Required','env.hivisPPE',d)}
+        <div class="section-subhdr">Hazardous Substances &amp; Biological</div>
+        ${cb('Chemicals / Pesticides','env.chemicals',d)}
+        ${cb('Dust / Fumes','env.dust',d)}
+        ${cb('Respiratory Protection Required','env.respiratory',d)}
+        ${cb('Biological Hazards (pollen, mould)','env.biological',d)}
+        ${cb('UV Radiation Exposure','env.uv',d)}
+        <div class="section-subhdr">Work Patterns</div>
+        ${txf('Ordinary Hours per Week','env.hoursPerWeek',d,'number')}
+        ${txf('Shift Length (hours)','env.shiftLength',d,'number')}
+        ${txf('Shift Type (e.g. Day, Rotating)','env.shiftType',d)}
+        ${yn('Includes Night Shift?','env.nightShift',d)}
+        ${yn('Rotating Roster?','env.rotating',d)}
+        ${txf('Breaks &amp; Duration','env.breaks',d)}
+        ${txf('Peak Periods / Seasonal Variation','env.peakPeriods',d)}
+        <div class="text-field">
+          <label>Environmental Comments</label>
+          <textarea rows="3" oninput="sf('env.comments',this.value)"
+            placeholder="Any additional environmental observations...">${esc(gf('env.comments',d)||'')}</textarea>
+        </div>
+      </div>
+    </div>
+
+    <!-- PHOTOS -->
+    <div class="card">
+      <div class="card-hdr closed" onclick="toggleCard(this)">📷 Photos <span class="chevron" style="transform:rotate(-90deg);">▼</span></div>
+      <div class="card-body" style="padding:14px 16px; display:none;">
+        <div class="photo-grid" id="photo-grid">
+          ${buildPhotoGrid(d.photos||[])}
+        </div>
+        <p style="font-size:11px;color:#9ca3af;margin:10px 0 0;">Tap the camera to take a photo. Max 10 per task.</p>
+      </div>
+    </div>
+
+    <!-- TASK NOTES -->
+    <div class="card">
+      <div class="card-hdr closed" onclick="toggleCard(this)">📝 Task Narrative &amp; Notes <span class="chevron" style="transform:rotate(-90deg);">▼</span></div>
+      <div class="card-body" style="padding:14px 16px; display:none;">
+        <textarea rows="6" oninput="sf('notes',this.value)"
+          style="width:100%;border:1.5px solid #d1d5db;border-radius:8px;padding:10px;font-size:14px;"
+          placeholder="Describe the task: how it is performed, equipment used, duration, observations, any special considerations...">${esc(d.notes||'')}</textarea>
+      </div>
+    </div>
+  `;
+}
+
+// ── Form Helpers ───────────────────────────────────────────────────────────────
+const FREQ_OPTS = ['','C','F','O','R','NA'];
+
+function fr(label, key, d) {
+  const val = gf(key, d) || '';
+  const opts = FREQ_OPTS.map(o => `<option value="${o}" ${o===val?'selected':''}>${o||'—'}</option>`).join('');
+  const filled = !!val;
+  return `
+    <div class="freq-row">
+      <span class="freq-label">${label}</span>
+      <select class="freq-sel ${filled?'filled':''}"
+        onchange="sf('${key}',this.value); this.className='freq-sel '+(this.value?'filled':''); updateRatings();">
+        ${opts}
+      </select>
+    </div>`;
+}
+
+function yn(label, key, d) {
+  const val = gf(key, d) || '';
+  const filled = !!val;
+  return `
+    <div class="freq-row">
+      <span class="freq-label">${label}</span>
+      <select class="freq-sel ${filled?'filled':''}"
+        onchange="sf('${key}',this.value); this.className='freq-sel '+(this.value?'filled':'');">
+        <option value="">—</option>
+        <option value="Y" ${val==='Y'?'selected':''}>Y</option>
+        <option value="N" ${val==='N'?'selected':''}>N</option>
+      </select>
+    </div>`;
+}
+
+function cb(label, key, d) {
+  const val = gf(key, d) || false;
+  const id = 'cb_' + key.replace(/\./g,'_');
+  return `
+    <div class="check-row">
+      <input type="checkbox" id="${id}" ${val?'checked':''} onchange="sf('${key}',this.checked)">
+      <label for="${id}">${label}</label>
+    </div>`;
+}
+
+function txf(label, key, d, type='text') {
+  const val = gf(key, d) || '';
+  return `
+    <div class="text-field">
+      <label>${label}</label>
+      <input type="${type}" value="${esc(val)}" oninput="sf('${key}',this.value)">
+    </div>`;
+}
+
+function liftTable(d) {
+  const cats = [
+    { k:'pp',  lbl:'Push / Pull' },
+    { k:'oh',  lbl:'Overhead' },
+    { k:'wl',  lbl:'Waist Level' },
+    { k:'gl',  lbl:'Ground &amp; Up' },
+  ];
+  const wts = ['>15 kg','11–15','6–10','2–5','&lt;2'];
+  const wks = ['gt15','11_15','6_10','2_5','lt2'];
+
+  const rows = cats.map(cat => {
+    const cells = wks.map((wk,wi) => {
+      const key = `lifting.${cat.k}_${wk}`;
+      const val = gf(key, d) || '';
+      const opts = FREQ_OPTS.map(o => `<option value="${o}" ${o===val?'selected':''}>${o||'—'}</option>`).join('');
+      return `<td style="padding:4px 3px;border-bottom:1px solid #f3f4f6;text-align:center;">
+        <select onchange="sf('${key}',this.value);updateRatings();"
+          style="border:1.5px solid ${val?'#6ee7b7':'#d1d5db'};border-radius:6px;padding:5px 2px;font-size:12px;background:${val?'#f0fdf4':'white'};width:46px;text-align:center;-webkit-appearance:none;appearance:none;">
+          ${opts}
+        </select>
+      </td>`;
+    }).join('');
+    const minKey = `lifting.${cat.k}_min`;
+    const minVal = gf(minKey, d) || '';
+    return `<tr>
+      <td style="padding:6px 6px 6px 0;border-bottom:1px solid #f3f4f6;font-size:12px;font-weight:600;white-space:nowrap;">${cat.lbl}</td>
+      ${cells}
+      <td style="padding:4px 0 4px 4px;border-bottom:1px solid #f3f4f6;">
+        <input type="text" value="${esc(minVal)}" oninput="sf('${minKey}',this.value)"
+          placeholder="e.g. 8 kg"
+          style="border:1.5px solid #d1d5db;border-radius:6px;padding:5px 6px;font-size:12px;width:72px;">
+      </td>
+    </tr>`;
+  }).join('');
+
+  return `<table style="border-collapse:collapse;font-size:12px;min-width:480px;">
+    <thead>
+      <tr style="background:#f9fafb;">
+        <th style="text-align:left;padding:6px 6px 6px 0;border-bottom:2px solid #e5e7eb;font-size:11px;color:#374151;font-weight:700;">Category</th>
+        ${wts.map(w=>`<th style="text-align:center;padding:6px 3px;border-bottom:2px solid #e5e7eb;font-size:11px;color:#374151;font-weight:700;min-width:50px;">${w}</th>`).join('')}
+        <th style="text-align:left;padding:6px 0 6px 4px;border-bottom:2px solid #e5e7eb;font-size:11px;color:#374151;font-weight:700;min-width:80px;">Min Load</th>
+      </tr>
+    </thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+
+// ── Field State Helpers ────────────────────────────────────────────────────────
+function gf(key, d) {
+  const parts = key.split('.');
+  let obj = d;
+  for (const p of parts) {
+    if (obj == null) return undefined;
+    obj = obj[p];
+  }
+  return obj;
+}
+
+function sf(key, val) {
+  const task = cur.positions[curPosIdx].tasks[curTaskIdx];
+  if (!task.data) task.data = {};
+  const parts = key.split('.');
+  let obj = task.data;
+  for (let i = 0; i < parts.length - 1; i++) {
+    if (obj[parts[i]] == null || typeof obj[parts[i]] !== 'object') obj[parts[i]] = {};
+    obj = obj[parts[i]];
+  }
+  obj[parts[parts.length-1]] = val;
+  saveAll();
+}
+
+function setCompleted(val) {
+  cur.positions[curPosIdx].tasks[curTaskIdx].completed = val;
+  saveCurToAll();
+  // Update progress bar
+  let total = 0, done = 0;
+  (cur.positions||[]).forEach(p => { const tasks=Array.isArray(p.tasks)?p.tasks:[]; total+=tasks.length; done+=tasks.filter(t=>t&&t.completed).length; });
+  const pct = total > 0 ? Math.round(done/total*100) : 0;
+  document.getElementById('assess-prog-fill').style.width = pct + '%';
+  document.getElementById('assess-progress-label').textContent = `${done}/${total}`;
+}
+
+function navTask(dir) {
+  saveCurToAll();
+  const flat = [];
+  (cur.positions||[]).forEach((p,pi) => (Array.isArray(p.tasks)?p.tasks:[]).forEach((t,ti) => flat.push({pi,ti})));
+  const cur_i = flat.findIndex(f => f.pi===curPosIdx && f.ti===curTaskIdx);
+  const next_i = cur_i + dir;
+  if (next_i < 0 || next_i >= flat.length) { goSummary(); return; }
+  curPosIdx = flat[next_i].pi;
+  curTaskIdx = flat[next_i].ti;
+  renderAssessTask();
+  window.scrollTo(0,0);
+}
+
+// ── Rating Logic ───────────────────────────────────────────────────────────────
+function fv(v) { return { 'C':4,'F':3,'O':2,'R':1,'NA':0,'':0 }[v||'']||0; }
+
+function calcPhysical(d) {
+  const l = d.lifting || {};
+  let heavy = false, medium = false;
+  ['pp','oh','wl','gl'].forEach(cat => {
+    const g = fv(l[cat+'_gt15']), r11 = fv(l[cat+'_11_15']), r6 = fv(l[cat+'_6_10']), r2 = fv(l[cat+'_2_5']);
+    // HEAVY: >15kg at Occasional+, OR 11-15kg at Frequent+, OR 6-10kg at Constant
+    if (g >= 2 || r11 >= 3 || r6 >= 4) heavy = true;
+    // MEDIUM: 11-15kg at Occasional+, OR 6-10kg at Frequent+, OR 2-5kg at Constant
+    if (r11 >= 2 || r6 >= 3 || r2 >= 4) medium = true;
+  });
+  return heavy ? 'HEAVY' : medium ? 'MEDIUM' : 'LIGHT';
+}
+
+function calcPsych(d) {
+  const p = d.psych || {};
+  // HIGH if any of these conditions are met (aligned to SafeWork Australia CoP)
+  if (
+    fv(p.harmfulBehaviours) >= 2 ||  // Occasional+ harmful behaviour exposure
+    fv(p.traumaticEvents) >= 2 ||     // Occasional+ traumatic events
+    fv(p.isolation) >= 3 ||           // Frequent+ isolation / remote work
+    fv(p.fatigue) >= 3 ||             // Frequent+ fatigue exposure
+    fv(p.jobDemands) >= 3 ||          // Frequent+ high job demands
+    fv(p.workplaceEnv) >= 3           // Frequent+ complex/uncontrolled environment
+  ) return 'HIGH';
+  return 'LOW';
+}
+
+function physBadge(r) {
+  if (r==='HEAVY') return `<span class="badge badge-heavy">⬛ Heavy</span>`;
+  if (r==='MEDIUM') return `<span class="badge badge-medium">◧ Medium</span>`;
+  return `<span class="badge badge-light">□ Light</span>`;
+}
+function psychBadge(r) {
+  return r==='HIGH'
+    ? `<span class="badge badge-high">⚠ High Risk</span>`
+    : `<span class="badge badge-low">✓ Low Risk</span>`;
+}
+function physNote(r) {
+  if (r==='HEAVY') return 'DOT: 25–50 kg occasionally / 10–25 kg frequently / 5–10 kg constantly';
+  if (r==='MEDIUM') return 'DOT: 10–25 kg occasionally / 5–10 kg frequently / up to 5 kg constantly';
+  return 'DOT: up to 10 kg occasionally / up to 5 kg frequently';
+}
+function psychNote(r) {
+  return r==='HIGH'
+    ? 'Elevated exposure to hazards — refer to SafeWork Australia CoP'
+    : 'Low-level psychosocial demands identified';
+}
+
+function updateRatings() {
+  const task = cur.positions[curPosIdx].tasks[curTaskIdx];
+  const d = task.data || {};
+  const phys = calcPhysical(d), psy = calcPsych(d);
+  const pEl = document.getElementById('r-physical'), psEl = document.getElementById('r-psych');
+  const pnEl = document.getElementById('r-physical-note'), psnEl = document.getElementById('r-psych-note');
+  if (pEl) pEl.innerHTML = physBadge(phys);
+  if (psEl) psEl.innerHTML = psychBadge(psy);
+  if (pnEl) pnEl.textContent = physNote(phys);
+  if (psnEl) psnEl.textContent = psychNote(psy);
+}
+
+// ── Photos ─────────────────────────────────────────────────────────────────────
+function buildPhotoGrid(photos) {
+  let html = photos.map((p,i) => `
+    <div class="photo-item">
+      <img src="${p}" onclick="viewPhoto(${i})" alt="Task photo ${i+1}">
+      <button class="photo-del" onclick="removePhoto(${i})">×</button>
+    </div>`).join('');
+  if (photos.length < 10) {
+    html += `
+      <label style="aspect-ratio:1;border:2px dashed #d1d5db;border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;background:#f9fafb;gap:4px;">
+        <span style="font-size:28px;">📷</span>
+        <span style="font-size:10px;color:#9ca3af;text-align:center;">Take photo<br>or choose</span>
+        <input type="file" accept="image/*" capture="environment" style="display:none;" onchange="addPhoto(this)">
+      </label>`;
+  }
+  return html;
+}
+
+function addPhoto(input) {
+  const task = cur.positions[curPosIdx].tasks[curTaskIdx];
+  if (!task.data) task.data = {};
+  if (!task.data.photos) task.data.photos = [];
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      let w = img.width, h = img.height;
+      const MAX = 1200;
+      if (w > MAX || h > MAX) {
+        if (w > h) { h = Math.round(h*MAX/w); w = MAX; }
+        else { w = Math.round(w*MAX/h); h = MAX; }
+      }
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      task.data.photos.push(canvas.toDataURL('image/jpeg', 0.75));
+      saveAll();
+      const grid = document.getElementById('photo-grid');
+      if (grid) grid.innerHTML = buildPhotoGrid(task.data.photos);
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function removePhoto(idx) {
+  const task = cur.positions[curPosIdx].tasks[curTaskIdx];
+  task.data.photos.splice(idx, 1);
+  saveAll();
+  const grid = document.getElementById('photo-grid');
+  if (grid) grid.innerHTML = buildPhotoGrid(task.data.photos);
+}
+
+function viewPhoto(idx) {
+  const task = cur.positions[curPosIdx].tasks[curTaskIdx];
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:9999;display:flex;align-items:center;justify-content:center;';
+  overlay.innerHTML = `
+    <img src="${task.data.photos[idx]}" style="max-width:96%;max-height:90vh;border-radius:8px;object-fit:contain;">
+    <button onclick="this.parentElement.remove()"
+      style="position:absolute;top:20px;right:20px;background:rgba(255,255,255,0.15);color:white;border:none;border-radius:50%;width:40px;height:40px;font-size:22px;cursor:pointer;display:flex;align-items:center;justify-content:center;">×</button>`;
+  document.body.appendChild(overlay);
+}
+
+// ── Summary Screen ─────────────────────────────────────────────────────────────
+function renderSummary() {
+  document.getElementById('summary-sub').textContent = `${cur.setup.org||''}${cur.setup.site?' · '+cur.setup.site:''}${cur.setup.date?' · '+cur.setup.date:''}`;
+
+  let total = 0, done = 0;
+  (cur.positions||[]).forEach(p => { const tasks=Array.isArray(p.tasks)?p.tasks:[]; total+=tasks.length; done+=tasks.filter(t=>t&&t.completed).length; });
+  const pct = total > 0 ? Math.round(done/total*100) : 0;
+
+  let html = `
+    <!-- Stats bar -->
+    <div class="card">
+      <div style="padding:16px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <div>
+            <div style="font-size:11px;color:#9ca3af;font-weight:700;text-transform:uppercase;">Tasks Complete</div>
+            <div style="font-size:26px;font-weight:800;color:#111;">${done} <span style="font-size:16px;color:#9ca3af;">/ ${total}</span></div>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-size:26px;font-weight:800;color:${pct===100?'#059669':'#d97706'};">${pct}%</div>
+            <div style="font-size:11px;color:#9ca3af;">complete</div>
+          </div>
+        </div>
+        <div style="height:6px;background:#e5e7eb;border-radius:3px;overflow:hidden;">
+          <div style="height:100%;background:${pct===100?'#059669':'#3b82f6'};width:${pct}%;border-radius:3px;"></div>
+        </div>
+        ${pct < 100 ? `<button class="btn btn-outline" style="margin-top:12px;" onclick="goAssess()">Continue Assessment →</button>` : ''}
+      </div>
+    </div>
+
+    <!-- Assessment Info (for print) -->
+    <div class="card" style="padding:14px 16px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:12px;">
+        <div><span style="color:#9ca3af;">Organisation: </span><strong>${esc(cur.setup.org||'—')}</strong></div>
+        <div><span style="color:#9ca3af;">Site: </span><strong>${esc(cur.setup.site||'—')}</strong></div>
+        <div><span style="color:#9ca3af;">Assessor: </span><strong>${esc(cur.setup.assessor||'—')}</strong></div>
+        <div><span style="color:#9ca3af;">Date: </span><strong>${esc(cur.setup.date||'—')}</strong></div>
+        <div><span style="color:#9ca3af;">Qualification: </span><strong>${esc(cur.setup.qualification||'—')}</strong></div>
+        <div><span style="color:#9ca3af;">Method: </span><strong>${esc(cur.setup.method||'—')}</strong></div>
+      </div>
+    </div>
+
+    <!-- Per-position tables -->
+    ${cur.positions.map((pos, pi) => {
+      const posTasks = Array.isArray(pos.tasks) ? pos.tasks : [];
+      const posDone = posTasks.filter(t=>t&&t.completed).length;
+      return `
+        <div class="card">
+          <div class="card-hdr" onclick="toggleCard(this)">
+            📌 ${esc(pos.title)} &nbsp;<span style="font-size:12px;opacity:0.75;">(${posDone}/${posTasks.length} complete)</span>
+            <span class="chevron">▼</span>
+          </div>
+          <div class="card-body" style="padding:0;">
+            <div style="overflow-x:auto;">
+              <table class="sum-table">
+                <thead>
+                  <tr>
+                    <th style="min-width:36px;">#</th>
+                    <th>Task</th>
+                    <th style="min-width:80px;">Physical</th>
+                    <th style="min-width:72px;">Psych</th>
+                    <th style="min-width:44px;" class="no-print">Status</th>
+                    <th class="no-print" style="min-width:60px;">Edit</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${posTasks.map((task, ti) => {
+                    const phys = calcPhysical(task.data||{});
+                    const psy = calcPsych(task.data||{});
+                    return `<tr>
+                      <td style="color:#9ca3af;font-size:12px;">${pi+1}.${ti+1}</td>
+                      <td style="font-weight:${task.completed?'600':'400'};color:${task.completed?'#111':'#9ca3af'};">${esc(task.name)}</td>
+                      <td>${physBadge(phys)}</td>
+                      <td>${psychBadge(psy)}</td>
+                      <td class="no-print" style="font-size:12px;">${task.completed?'<span style="color:#059669;">✓</span>':'<span style="color:#d97706;">○</span>'}</td>
+                      <td class="no-print">
+                        <button class="btn btn-outline btn-sm" style="padding:5px 10px;font-size:12px;" onclick="jumpTo(${pi},${ti})">Edit</button>
+                      </td>
+                    </tr>`;
+                  }).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>`;
+    }).join('')}
+
+    <!-- Export Panel -->
+    <div class="card no-print">
+      <div style="padding:16px;">
+        <div style="font-weight:700;font-size:15px;margin-bottom:4px;">Export</div>
+        <p style="font-size:12px;color:#9ca3af;margin:0 0 14px;">CSV imports into Excel · PDF for reports and sign-off</p>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <button class="btn btn-outline" onclick="exportCSV()">⬇ Export CSV</button>
+          <button class="btn btn-navy" onclick="window.print()">🖨 Print / PDF</button>
+        </div>
+        <button class="btn btn-outline" style="margin-top:10px;font-size:13px;" onclick="exportJSON()">💾 Backup (JSON)</button>
+      </div>
+    </div>
+
+    <!-- Setup info -->
+    <button class="btn btn-outline no-print" style="margin-bottom:24px;" onclick="goSetup(cur.id)">⚙ Edit Setup</button>
+  `;
+
+  document.getElementById('summary-content').innerHTML = html;
+}
+
+function jumpTo(pi, ti) {
+  curPosIdx = pi; curTaskIdx = ti;
+  renderAssessTask();
+  showScreen('assess');
+}
+
+// ── Export: CSV ────────────────────────────────────────────────────────────────
+function exportCSV() {
+  const s = cur.setup;
+  const headers = [
+    'Organisation','Site','Site Address','Assessor','Qualification','Date',
+    'Position','Task No','Task Name','Complete',
+    // Physical
+    'Bending','Twisting','Squatting','Single Arm Above SH','Single Arm Below SH',
+    'Both Arms Above SH','Both Arms Below SH','Gripping / Fine Motor',
+    'Standing','Walking','Climbing','Sitting','Lifting Control (Y/N)',
+    // PP
+    'PP >15kg','PP 11-15kg','PP 6-10kg','PP 2-5kg','PP <2kg','PP Min Load',
+    // OH
+    'OH >15kg','OH 11-15kg','OH 6-10kg','OH 2-5kg','OH <2kg','OH Min Load',
+    // WL
+    'WL >15kg','WL 11-15kg','WL 6-10kg','WL 2-5kg','WL <2kg','WL Min Load',
+    // GL
+    'GL >15kg','GL 11-15kg','GL 6-10kg','GL 2-5kg','GL <2kg','GL Min Load',
+    // Psych
+    'Stakeholder Interaction','Follow Instruction','Work Autonomously',
+    'Exposure to Fatigue','Working Memory','Long Term Memory',
+    'Harmful Behaviours','Traumatic Events','Work Remotely / Isolation',
+    'Job Demands','Workplace Environment',
+    // Ratings
+    'Physical Rating','Psych Rating',
+    // Env: location
+    'Indoor','Outdoor','Mixed','Confined Spaces','Elevated Surfaces',
+    // Env: surfaces
+    'Flat Surface','Uneven Ground','Inclines','Slippery','Wet',
+    // Env: temp
+    'Ambient Temp','Hot (>28C)','Cold (<10C)','Direct Sunlight','Wind/Weather',
+    // Env: noise
+    'Ambient Noise','Moderate Noise','High Noise','HAV','WBV',
+    // Env: lighting
+    'Natural Lighting','Artificial Lighting','Glare','Low-Light / Night','HiVis PPE',
+    // Env: hazards
+    'Chemicals','Dust / Fumes','Respiratory PPE','Biological','UV Radiation',
+    // Env: patterns
+    'Hours/Week','Shift Length (hrs)','Shift Type','Night Shift','Rotating Roster',
+    'Breaks','Peak Periods','Env Comments',
+    'Task Notes','Photo Count'
+  ];
+
+  const rows = [headers];
+  (cur.positions||[]).forEach((pos, pi) => {
+    (Array.isArray(pos.tasks)?pos.tasks:[]).forEach((task, ti) => {
+      const d = task.data || {};
+      const ph = d.physical || {};
+      const l = d.lifting || {};
+      const p = d.psych || {};
+      const e = d.env || {};
+      const yb = v => v ? 'Y' : '';
+      rows.push([
+        s.org, s.site, s.address, s.assessor, s.qualification, s.date,
+        pos.title, `${pi+1}.${ti+1}`, task.name, task.completed?'Yes':'No',
+        ph.bending||'', ph.twisting||'', ph.squatting||'',
+        ph.singleArmAbove||'', ph.singleArmBelow||'',
+        ph.bothArmsAbove||'', ph.bothArmsBelow||'', ph.gripping||'',
+        ph.standing||'', ph.walking||'', ph.climbing||'', ph.sitting||'', ph.liftingControl||'',
+        l.pp_gt15||'', l.pp_11_15||'', l.pp_6_10||'', l.pp_2_5||'', l.pp_lt2||'', l.pp_min||'',
+        l.oh_gt15||'', l.oh_11_15||'', l.oh_6_10||'', l.oh_2_5||'', l.oh_lt2||'', l.oh_min||'',
+        l.wl_gt15||'', l.wl_11_15||'', l.wl_6_10||'', l.wl_2_5||'', l.wl_lt2||'', l.wl_min||'',
+        l.gl_gt15||'', l.gl_11_15||'', l.gl_6_10||'', l.gl_2_5||'', l.gl_lt2||'', l.gl_min||'',
+        p.stakeholder||'', p.followInstruction||'', p.autonomous||'',
+        p.fatigue||'', p.workingMemory||'', p.longTermMemory||'',
+        p.harmfulBehaviours||'', p.traumaticEvents||'', p.isolation||'',
+        p.jobDemands||'', p.workplaceEnv||'',
+        calcPhysical(d), calcPsych(d),
+        yb(e.indoor), yb(e.outdoor), yb(e.mixed), yb(e.confined), yb(e.elevated),
+        yb(e.flat), yb(e.uneven), yb(e.inclines), yb(e.slippery), yb(e.wet),
+        yb(e.ambient), yb(e.hot), yb(e.cold), yb(e.sunlight), yb(e.wind),
+        yb(e.noiseAmbient), yb(e.noiseModerate), yb(e.noiseHigh), yb(e.hav), yb(e.wbv),
+        yb(e.naturalLight), yb(e.artificialLight), yb(e.glare), yb(e.lowLight), yb(e.hivisPPE),
+        yb(e.chemicals), yb(e.dust), yb(e.respiratory), yb(e.biological), yb(e.uv),
+        e.hoursPerWeek||'', e.shiftLength||'', e.shiftType||'',
+        e.nightShift||'', e.rotating||'', e.breaks||'', e.peakPeriods||'', e.comments||'',
+        d.notes||'', (d.photos||[]).length
+      ]);
+    });
+  });
+
+  const csv = rows.map(row =>
+    row.map(cell => `"${String(cell===null||cell===undefined?'':cell).replace(/"/g,'""')}"`).join(',')
+  ).join('\n');
+
+  download(csv, `JTA_${(s.org||'Assessment').replace(/[^\w]/g,'_')}_${s.date||today()}.csv`, 'text/csv');
+}
+
+function exportJSON() {
+  download(JSON.stringify(cur, null, 2),
+    `JTA_backup_${(cur.setup.org||'Assessment').replace(/[^\w]/g,'_')}_${today()}.json`,
+    'application/json');
+}
+
+function download(content, filename, type) {
+  const blob = new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function today() { return new Date().toISOString().slice(0,10); }
+
+// ── UI Helpers ─────────────────────────────────────────────────────────────────
+function toggleCard(hdr) {
+  const body = hdr.nextElementSibling;
+  const isOpen = !hdr.classList.contains('closed');
+  if (isOpen) {
+    hdr.classList.add('closed');
+    hdr.querySelector('.chevron').style.transform = 'rotate(-90deg)';
+    body.style.display = 'none';
+  } else {
+    hdr.classList.remove('closed');
+    hdr.querySelector('.chevron').style.transform = '';
+    body.style.display = 'block';
+  }
+}
+
+function esc(str) {
+  return String(str||'')
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Safari banner (shown when opened from email / restricted context) ──────────
+function checkOpenInSafari() {
+  // Detect restricted WebView contexts (Mail, Messages, etc.) on iOS
+  const ua = navigator.userAgent;
+  const isIOS = /iP(hone|ad|od)/.test(ua);
+  if (!isIOS) return;
+  // In a proper Safari session, window.safari exists or the URL starts with file://
+  const inSafari = ua.includes('Safari') && !ua.includes('GSA') && (window.location.protocol === 'file:' || !!window.safari);
+  // Check if localStorage is actually working
+  let lsWorks = false;
+  try { localStorage.setItem('_t','1'); localStorage.removeItem('_t'); lsWorks = true; } catch(e) {}
+  if (!lsWorks) {
+    const banner = document.createElement('div');
+    banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:#d97706;color:white;padding:12px 16px;font-size:13px;font-weight:600;text-align:center;';
+    banner.innerHTML = '⚠ Open this file in Safari for full functionality.<br><span style="font-weight:400;font-size:12px;">Tap Share → Open in Safari</span>';
+    document.body.prepend(banner);
+  }
+}
+
+// ── Init ───────────────────────────────────────────────────────────────────────
+loadAll();
+renderHome();
+checkOpenInSafari();
+</script>
+</body>
+</html>
