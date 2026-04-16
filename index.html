@@ -44,6 +44,11 @@
       appearance: none; font-size: 13px; cursor: pointer;
     }
     .freq-sel.filled { border-color: #6ee7b7; background: #f0fdf4; }
+    .info-btn { background: none; border: 1.5px solid #9ca3af; color: #6b7280; border-radius: 50%; width: 20px; height: 20px; font-size: 11px; font-weight: 700; cursor: pointer; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; margin-left: 6px; line-height: 1; padding: 0; }
+    .info-btn.open { background: #eff6ff; border-color: #3b82f6; color: #2563eb; }
+    .info-panel { background: #f8faff; border-left: 3px solid #93c5fd; border-radius: 0 6px 6px 0; padding: 10px 12px; margin: 4px 0 8px; font-size: 12px; color: #374151; line-height: 1.6; display: none; }
+    .info-panel ul { margin: 4px 0 0 14px; padding: 0; }
+    .info-panel li { margin-bottom: 3px; }
     .btn { border-radius: 10px; padding: 13px 18px; font-weight: 600; font-size: 15px; border: none; cursor: pointer; display: block; width: 100%; text-align: center; transition: opacity 0.15s; }
     .btn:active { opacity: 0.8; }
     .btn-navy { background: var(--navy); color: white; }
@@ -579,7 +584,6 @@ function renderAssessTask() {
         ${fr('Walking','physical.walking',d)}
         ${fr('Climbing (stairs / ladders)','physical.climbing',d)}
         ${fr('Sitting','physical.sitting',d)}
-        ${yn('Control over lifting amount &amp; frequency?','physical.liftingControl',d)}
       </div>
     </div>
 
@@ -591,6 +595,7 @@ function renderAssessTask() {
         <div style="overflow-x:auto; -webkit-overflow-scrolling:touch;">
           ${liftTable(d)}
         </div>
+        ${yn('Is there control over the amount and frequency of daily lifting?','physical.liftingControl',d)}
       </div>
     </div>
 
@@ -598,17 +603,53 @@ function renderAssessTask() {
     <div class="card">
       <div class="card-hdr" onclick="toggleCard(this)">3 · Cognitive &amp; Psychosocial Demands <span class="chevron">▼</span></div>
       <div class="card-body" style="padding:10px 16px;">
-        ${fr('Stakeholder / Public Interaction','psych.stakeholder',d)}
-        ${fr('Follow Instruction','psych.followInstruction',d)}
-        ${fr('Work Autonomously','psych.autonomous',d)}
-        ${fr('Exposure to Fatigue','psych.fatigue',d)}
-        ${fr('Working Memory','psych.workingMemory',d)}
-        ${fr('Long Term Memory','psych.longTermMemory',d)}
-        ${fr('Exposure to Harmful Behaviours','psych.harmfulBehaviours',d)}
-        ${fr('Exposure to Traumatic Events','psych.traumaticEvents',d)}
-        ${fr('Work Remotely / Isolation','psych.isolation',d)}
-        ${fr('Job Demands','psych.jobDemands',d)}
-        ${fr('Workplace Environment','psych.workplaceEnv',d)}
+        ${fr('Stakeholder / Public Interaction','psych.stakeholder',d,
+          `Capture frequency of interactions with patients, clients, customers, or the public. Consider: customer-facing duties, managing complaints or conflict, communicating with multiple stakeholders, and the emotional or behavioural demands of those interactions.`)}
+        ${fr('Follow Instruction','psych.followInstruction',d,
+          `Capture the frequency of needing to receive, retain and act on instructions. Consider: multi-step verbal or written procedures, adherence to policies or protocols, and whether instructions change frequently or require interpretation.`)}
+        ${fr('Work Autonomously','psych.autonomous',d,
+          `Capture the frequency of independent decision-making or self-directed work. Consider: working without direct supervision, self-monitoring of work quality, managing own workflow and priorities.`)}
+        ${fr('Exposure to Fatigue','psych.fatigue',d,
+          `<ul>
+            <li>Long work hours, insufficient breaks, consecutive days without rest</li>
+            <li>On-call duties or irregular call-backs</li>
+            <li>Extended commute times</li>
+            <li>Shift work or night work</li>
+          </ul>`)}
+        ${fr('Working Memory','psych.workingMemory',d,
+          `Capture the frequency of needing to hold and manipulate information during a task. Consider: remembering verbal instructions while performing physical work, tracking multiple concurrent tasks, multi-tasking demands, and time-sensitive information processing.`)}
+        ${fr('Long Term Memory','psych.longTermMemory',d,
+          `Capture the frequency of needing to recall stored knowledge. Consider: recalling procedures, protocols or safety requirements, recognising equipment and its correct use, remembering client or patient information across multiple interactions over time.`)}
+        ${fr('Exposure to Harmful Behaviours','psych.harmfulBehaviours',d,
+          `<ul>
+            <li>Violence or threats of violence from workers, customers, patients or clients (including assault)</li>
+            <li>Aggressive behaviour such as yelling or physical intimidation</li>
+          </ul>`)}
+        ${fr('Exposure to Traumatic Events','psych.traumaticEvents',d,
+          `<ul>
+            <li>Experiencing fear or extreme risks to the health or safety of themselves or others</li>
+            <li>Exposure to natural disasters, or seriously injured or deceased persons</li>
+            <li>Reading, hearing or seeing accounts of traumatic events, abuse or neglect</li>
+            <li>Supporting victims or investigating traumatic events, abuse or neglect</li>
+          </ul>`)}
+        ${fr('Work Remotely / Isolation','psych.isolation',d,
+          `<ul>
+            <li>Working in locations with long travel times, or where access to help, resources or communications is difficult or limited</li>
+            <li>Physical isolation or field work without support</li>
+            <li>Remote location work</li>
+            <li>Limited communication with colleagues</li>
+          </ul>`)}
+        ${fr('Job Demands','psych.jobDemands',d,
+          `<ul>
+            <li>Intense or sustained high mental, physical or emotional effort required to do the job</li>
+            <li>Unreasonable or excessive time pressures or role overload</li>
+            <li>High individual reputational, legal, career, safety or financial risk if mistakes occur</li>
+            <li>High vigilance required, limited margin of error and inadequate systems to prevent individual error</li>
+            <li>Shifts/work hours that do not allow adequate time for sleep and recovery</li>
+            <li>Sustained low levels of physical, mental or emotional effort (e.g. long idle periods while high workloads are present)</li>
+          </ul>`)}
+        ${fr('Workplace Environment','psych.workplaceEnv',d,
+          `Exposure to unpleasant or hazardous working environments. Examples include: poor air quality, inadequate facilities, excessive noise, inadequate lighting or ventilation.`)}
       </div>
     </div>
 
@@ -702,18 +743,32 @@ const FREQ_LABELS = {
   'NA': 'NA – Not Applicable'
 };
 
-function fr(label, key, d) {
+function fr(label, key, d, desc) {
   const val = gf(key, d) || '';
   const opts = FREQ_OPTS.map(o => `<option value="${o}" ${o===val?'selected':''}>${FREQ_LABELS[o]}</option>`).join('');
   const filled = !!val;
+  const uid = 'info_' + key.replace(/\./g,'_');
+  const infoBtn = desc ? `<button type="button" class="info-btn" onclick="toggleInfoPanel('${uid}',this)" title="Show guidance">i</button>` : '';
+  const infoPanel = desc ? `<div id="${uid}" class="info-panel">${desc}</div>` : '';
   return `
-    <div class="freq-row">
-      <span class="freq-label">${label}</span>
-      <select class="freq-sel ${filled?'filled':''}"
-        onchange="sf('${key}',this.value); this.className='freq-sel '+(this.value?'filled':''); updateRatings();">
-        ${opts}
-      </select>
+    <div>
+      <div class="freq-row">
+        <span class="freq-label" style="display:flex;align-items:center;gap:0;">${label}${infoBtn}</span>
+        <select class="freq-sel ${filled?'filled':''}"
+          onchange="sf('${key}',this.value); this.className='freq-sel '+(this.value?'filled':''); updateRatings();">
+          ${opts}
+        </select>
+      </div>
+      ${infoPanel}
     </div>`;
+}
+
+function toggleInfoPanel(id, btn) {
+  const panel = document.getElementById(id);
+  if (!panel) return;
+  const isOpen = panel.style.display === 'block';
+  panel.style.display = isOpen ? 'none' : 'block';
+  btn.classList.toggle('open', !isOpen);
 }
 
 function yn(label, key, d) {
@@ -764,10 +819,10 @@ function liftTable(d) {
     const cells = wks.map((wk,wi) => {
       const key = `lifting.${cat.k}_${wk}`;
       const val = gf(key, d) || '';
-      const opts = FREQ_OPTS.map(o => `<option value="${o}" ${o===val?'selected':''}>${o||'—'}</option>`).join('');
+      const opts = FREQ_OPTS.map(o => `<option value="${o}" ${o===val?'selected':''}>${FREQ_LABELS[o]}</option>`).join('');
       return `<td style="padding:4px 3px;border-bottom:1px solid #f3f4f6;text-align:center;">
         <select onchange="sf('${key}',this.value);updateRatings();"
-          style="border:1.5px solid ${val?'#6ee7b7':'#d1d5db'};border-radius:6px;padding:5px 2px;font-size:12px;background:${val?'#f0fdf4':'white'};width:46px;text-align:center;-webkit-appearance:none;appearance:none;">
+          style="border:1.5px solid ${val?'#6ee7b7':'#d1d5db'};border-radius:6px;padding:5px 4px;font-size:12px;background:${val?'#f0fdf4':'white'};min-width:80px;-webkit-appearance:none;appearance:none;">
           ${opts}
         </select>
       </td>`;
