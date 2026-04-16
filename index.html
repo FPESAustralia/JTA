@@ -129,8 +129,14 @@
     <p style="font-size:13px; opacity:0.75; margin:0;">On-site Assessment</p>
   </div>
   <div style="padding:16px;">
-    <button class="btn btn-navy" style="margin-bottom:16px;" onclick="goSetup(null)">＋ New Assessment</button>
-    <p style="font-size:13px; font-weight:600; color:#374151; margin:0 0 8px;">Saved Assessments</p>
+    <button class="btn btn-navy" style="margin-bottom:12px;" onclick="goSetup(null)">＋ New Assessment</button>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+      <p style="font-size:13px;font-weight:600;color:#374151;margin:0;">Saved Assessments</p>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span id="sync-status" style="font-size:11px;color:#9ca3af;"></span>
+        <button onclick="manualSync()" style="background:none;border:1.5px solid #d1d5db;border-radius:6px;padding:4px 10px;font-size:12px;color:#374151;cursor:pointer;" id="sync-btn">↻ Sync</button>
+      </div>
+    </div>
     <div id="home-list"></div>
   </div>
 </div>
@@ -170,7 +176,7 @@
     <!-- Task jump dropdown -->
     <div style="padding:8px 0 2px;">
       <select id="task-jump-sel" onchange="jumpToFlat(this.value)"
-        style="width:100%;background:rgba(255,255,255,0.15);color:white;border:1px solid rgba(255,255,255,0.3);border-radius:8px;padding:7px 10px;font-size:13px;-webkit-appearance:none;appearance:none;">
+        style="width:100%;background:white;color:#1e3a5f;border:none;border-radius:8px;padding:7px 10px;font-size:13px;font-weight:600;-webkit-appearance:none;appearance:none;">
       </select>
     </div>
   </div>
@@ -209,16 +215,44 @@ let cur = null; // current assessment being worked on
 let curPosIdx = 0;
 let curTaskIdx = 0;
 
+// ── Cloud config (paste your Apps Script URL between the quotes) ───────────────
+const BACKEND_URL = '';
+
 // ── Persistence ────────────────────────────────────────────────────────────────
 function saveAll() {
+  // Always save to localStorage immediately (works offline)
   try {
     localStorage.setItem('jta_all', JSON.stringify(allAssessments));
     if (cur) localStorage.setItem('jta_cur', JSON.stringify(cur));
-  } catch(e) { console.warn('Save failed:', e); }
+  } catch(e) { console.warn('Local save failed:', e); }
+  // Push current assessment to cloud (fire-and-forget, excludes photos)
+  if (BACKEND_URL && cur) pushToCloud(cur);
+}
+
+function pushToCloud(assessment) {
+  const copy = stripPhotos(assessment);
+  const fd = new URLSearchParams();
+  fd.append('data', JSON.stringify(copy));
+  fetch(BACKEND_URL, { method: 'POST', body: fd })
+    .then(() => setSyncStatus('✓ Synced', '#059669'))
+    .catch(() => setSyncStatus('⚠ Sync failed — saved locally', '#d97706'));
+}
+
+function stripPhotos(assessment) {
+  // Photos stay local only (too large for cloud sync)
+  const copy = JSON.parse(JSON.stringify(assessment));
+  (copy.positions||[]).forEach(p =>
+    (p.tasks||[]).forEach(t => { if (t.data) delete t.data.photos; })
+  );
+  return copy;
+}
+
+function setSyncStatus(msg, colour) {
+  const el = document.getElementById('sync-status');
+  if (el) { el.textContent = msg; el.style.color = colour; }
 }
 
 function sanitiseAssessment(a) {
-  // Ensure every assessment has valid structure — guards against partial saves
   if (!a) return null;
   if (!a.setup) a.setup = {};
   if (!Array.isArray(a.positions)) a.positions = [];
@@ -231,15 +265,51 @@ function sanitiseAssessment(a) {
 }
 
 function loadAll() {
+  // Load from localStorage first (instant, works offline)
   try {
     const a = localStorage.getItem('jta_all');
-    if (a) {
-      const parsed = JSON.parse(a);
-      allAssessments = Array.isArray(parsed) ? parsed.map(sanitiseAssessment).filter(Boolean) : [];
-    }
+    if (a) allAssessments = JSON.parse(a).map(sanitiseAssessment).filter(Boolean);
     const c = localStorage.getItem('jta_cur');
     if (c) cur = sanitiseAssessment(JSON.parse(c));
-  } catch(e) { console.warn('JTA load error:', e); }
+  } catch(e) { console.warn('Local load error:', e); }
+}
+
+async function syncFromCloud() {
+  if (!BACKEND_URL) return;
+  setSyncStatus('↻ Syncing…', '#6b7280');
+  try {
+    const resp = await fetch(BACKEND_URL + '?action=list');
+    const data = await resp.json();
+    if (Array.isArray(data)) {
+      // Merge: cloud wins for same ID; keep local-only items too
+      const cloudMap = {};
+      data.forEach(a => { if (a && a.id) cloudMap[a.id] = sanitiseAssessment(a); });
+      const localOnly = allAssessments.filter(a => !cloudMap[a.id]);
+      allAssessments = [...Object.values(cloudMap), ...localOnly];
+      // Restore photos from localStorage for assessments we have locally
+      const localMap = {};
+      try {
+        const raw = localStorage.getItem('jta_all');
+        if (raw) JSON.parse(raw).forEach(a => { if (a && a.id) localMap[a.id] = a; });
+      } catch(e) {}
+      allAssessments.forEach(a => {
+        const local = localMap[a.id];
+        if (!local) return;
+        (a.positions||[]).forEach((p, pi) => {
+          (p.tasks||[]).forEach((t, ti) => {
+            const lp = local.positions && local.positions[pi];
+            const lt = lp && lp.tasks && lp.tasks[ti];
+            if (lt && lt.data && lt.data.photos) t.data.photos = lt.data.photos;
+          });
+        });
+      });
+      try { localStorage.setItem('jta_all', JSON.stringify(allAssessments)); } catch(e) {}
+      setSyncStatus('✓ Synced', '#059669');
+    }
+  } catch(e) {
+    setSyncStatus('⚠ Offline — using local data', '#d97706');
+    console.warn('Cloud sync failed:', e);
+  }
 }
 
 function saveCurToAll() {
@@ -354,6 +424,9 @@ function deleteAssessment(id) {
   allAssessments = allAssessments.filter(a => a.id !== id);
   if (cur && cur.id === id) cur = null;
   saveAll();
+  if (BACKEND_URL) {
+    fetch(BACKEND_URL + '?action=delete&id=' + encodeURIComponent(id)).catch(() => {});
+  }
   renderHome();
 }
 
@@ -1311,10 +1384,15 @@ function checkOpenInSafari() {
   }
 }
 
+function manualSync() {
+  syncFromCloud().then(() => renderHome());
+}
+
 // ── Init ───────────────────────────────────────────────────────────────────────
 loadAll();
 renderHome();
 checkOpenInSafari();
+syncFromCloud().then(() => renderHome()); // Silent background sync on load
 </script>
 </body>
 </html>
