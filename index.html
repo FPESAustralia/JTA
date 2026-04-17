@@ -216,7 +216,13 @@ let curPosIdx = 0;
 let curTaskIdx = 0;
 
 // ── Cloud config (paste your Apps Script URL between the quotes) ───────────────
-const BACKEND_URL = '';
+// ── JSONBin.io cloud config ────────────────────────────────────────────────────
+// Sign up free at https://jsonbin.io, then:
+//   1. Copy your Master Key from the dashboard and paste below
+//   2. Leave JSONBIN_ID blank on first run — the app will create a bin for you
+//      and show you the ID to paste back here for future sessions.
+const JSONBIN_KEY = $2a$10$your-key-here;
+const JSONBIN_ID  = 
 
 // ── Persistence ────────────────────────────────────────────────────────────────
 function saveAll() {
@@ -225,17 +231,44 @@ function saveAll() {
     localStorage.setItem('jta_all', JSON.stringify(allAssessments));
     if (cur) localStorage.setItem('jta_cur', JSON.stringify(cur));
   } catch(e) { console.warn('Local save failed:', e); }
-  // Push current assessment to cloud (fire-and-forget, excludes photos)
-  if (BACKEND_URL && cur) pushToCloud(cur);
+  // Push to cloud (fire-and-forget, excludes photos)
+  if (JSONBIN_KEY) pushToCloud();
 }
 
-function pushToCloud(assessment) {
-  const copy = stripPhotos(assessment);
-  const fd = new URLSearchParams();
-  fd.append('data', JSON.stringify(copy));
-  fetch(BACKEND_URL, { method: 'POST', body: fd })
-    .then(() => setSyncStatus('✓ Synced', '#059669'))
-    .catch(() => setSyncStatus('⚠ Sync failed — saved locally', '#d97706'));
+async function pushToCloud() {
+  const stripped = allAssessments.map(a => stripPhotos(a));
+  const binId = JSONBIN_ID || localStorage.getItem('jta_bin_id');
+  try {
+    if (binId) {
+      // Update existing bin
+      await fetch(`https://api.jsonbin.io/v3/b/${binId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'X-Master-Key': JSONBIN_KEY },
+        body: JSON.stringify(stripped)
+      });
+    } else {
+      // Create a new bin on first use
+      const resp = await fetch('https://api.jsonbin.io/v3/b', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Master-Key': JSONBIN_KEY,
+          'X-Bin-Name': 'JTA-Assessments',
+          'X-Bin-Private': 'true'
+        },
+        body: JSON.stringify(stripped)
+      });
+      const json = await resp.json();
+      const newId = json.metadata && json.metadata.id;
+      if (newId) {
+        localStorage.setItem('jta_bin_id', newId);
+        alert('✅ Cloud storage created!\n\nYour Bin ID is:\n' + newId + '\n\nPaste this into JSONBIN_ID in index.html so other devices can sync to the same store.');
+      }
+    }
+    setSyncStatus('✓ Synced', '#059669');
+  } catch(e) {
+    setSyncStatus('⚠ Sync failed — saved locally', '#d97706');
+  }
 }
 
 function stripPhotos(assessment) {
@@ -275,11 +308,16 @@ function loadAll() {
 }
 
 async function syncFromCloud() {
-  if (!BACKEND_URL) return;
+  if (!JSONBIN_KEY) return;
+  const binId = JSONBIN_ID || localStorage.getItem('jta_bin_id');
+  if (!binId) return;
   setSyncStatus('↻ Syncing…', '#6b7280');
   try {
-    const resp = await fetch(BACKEND_URL + '?action=list');
-    const data = await resp.json();
+    const resp = await fetch(`https://api.jsonbin.io/v3/b/${binId}/latest`, {
+      headers: { 'X-Master-Key': JSONBIN_KEY }
+    });
+    const json = await resp.json();
+    const data = json.record;
     if (Array.isArray(data)) {
       // Merge: cloud wins for same ID; keep local-only items too
       const cloudMap = {};
@@ -423,10 +461,7 @@ function deleteAssessment(id) {
   if (!confirm('Delete this assessment? This cannot be undone.')) return;
   allAssessments = allAssessments.filter(a => a.id !== id);
   if (cur && cur.id === id) cur = null;
-  saveAll();
-  if (BACKEND_URL) {
-    fetch(BACKEND_URL + '?action=delete&id=' + encodeURIComponent(id)).catch(() => {});
-  }
+  saveAll(); // saveAll already pushes updated list to cloud
   renderHome();
 }
 
