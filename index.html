@@ -100,6 +100,12 @@
     }
     .rating-item { flex: 1; min-width: 120px; }
     .rating-item .lbl { font-size: 11px; color: #9ca3af; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 5px; }
+    .assess-task-input { background:rgba(255,255,255,0.12); color:white; border:1px solid rgba(255,255,255,0.25); border-radius:8px; padding:5px 8px; width:100%; font-size:17px; font-weight:700; line-height:1.25; font-family:inherit; }
+    .assess-task-input::placeholder { color:rgba(255,255,255,0.45); }
+    .assess-task-input:focus { outline:none; border-color:rgba(255,255,255,0.6); background:rgba(255,255,255,0.18); }
+    .save-now-btn { background:rgba(255,255,255,0.12); color:white; border:1px solid rgba(255,255,255,0.3); border-radius:8px; padding:10px 14px; font-size:13px; font-weight:600; cursor:pointer; white-space:nowrap; }
+    .add-in-btn { background:rgba(255,255,255,0.08); color:white; border:1px solid rgba(255,255,255,0.2); border-radius:8px; padding:8px 10px; font-size:12px; font-weight:600; cursor:pointer; text-align:center; width:100%; }
+    .rating-final-sel { width:100%; border:1.5px solid #d1d5db; border-radius:8px; padding:7px 8px; background:white; font-size:13px; margin-top:6px; }
     /* Print styles */
     @media print {
       .no-print { display: none !important; }
@@ -166,7 +172,10 @@
       <button onclick="goSummary()" style="background:none;border:none;color:white;font-size:24px;cursor:pointer;padding:2px 0 0;line-height:1;flex-shrink:0;">‹</button>
       <div style="flex:1; min-width:0;">
         <div id="assess-pos-label" style="font-size:11px; opacity:0.65; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"></div>
-        <div id="assess-task-label" style="font-size:17px; font-weight:700; line-height:1.25; word-break:break-word;"></div>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span id="assess-task-num" style="font-size:13px;opacity:0.7;white-space:nowrap;flex-shrink:0;"></span>
+          <input type="text" id="assess-task-label" class="assess-task-input" placeholder="Task name…" oninput="updateCurrentTaskName(this.value)">
+        </div>
       </div>
       <div id="assess-progress-label" style="font-size:12px; opacity:0.65; flex-shrink:0; padding-top:4px;"></div>
     </div>
@@ -181,9 +190,16 @@
     </div>
   </div>
   <div style="padding:12px 12px 130px;" id="assess-body"></div>
-  <div class="task-nav-bar no-print">
-    <button class="btn btn-outline" onclick="navTask(-1)">◀ Previous</button>
-    <button class="btn btn-navy" onclick="navTask(1)">Next ▶</button>
+  <div class="task-nav-bar no-print" style="display:block;padding:10px 16px 14px;background:white;border-top:1px solid #e5e7eb;position:sticky;bottom:0;z-index:10;">
+    <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:8px;margin-bottom:8px;">
+      <button class="btn btn-outline" onclick="navTask(-1)" style="padding:11px 8px;font-size:14px;">◀ Prev</button>
+      <button class="save-now-btn" id="save-now-btn" onclick="manualSaveWithFeedback()">💾 Save</button>
+      <button class="btn btn-navy" onclick="navTask(1)" style="padding:11px 8px;font-size:14px;">Next ▶</button>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+      <button class="add-in-btn" onclick="addTaskInAssess()">＋ Task to this position</button>
+      <button class="add-in-btn" onclick="addPositionInAssess()">＋ New position</button>
+    </div>
   </div>
 </div>
 
@@ -226,7 +242,14 @@ const JSONBIN_ID  = '69e1d794856a68218942c47d';
 
 // ── Persistence ────────────────────────────────────────────────────────────────
 function saveAll() {
-  // Always save to localStorage immediately (works offline)
+  // Always sync cur into allAssessments before saving (prevents data loss on reload)
+  if (cur) {
+    cur.lastModified = new Date().toISOString();
+    const idx = allAssessments.findIndex(a => a.id === cur.id);
+    const copy = JSON.parse(JSON.stringify(cur));
+    if (idx >= 0) allAssessments[idx] = copy;
+    else allAssessments.push(copy);
+  }
   try {
     localStorage.setItem('jta_all', JSON.stringify(allAssessments));
     if (cur) localStorage.setItem('jta_cur', JSON.stringify(cur));
@@ -453,6 +476,8 @@ function renderHome() {
 }
 
 function openAssessment(id) {
+  // Use cur if it matches (has latest in-session changes)
+  if (cur && cur.id === id) { goSummary(); return; }
   const found = allAssessments.find(a => a.id === id);
   if (found) { cur = JSON.parse(JSON.stringify(found)); goSummary(); }
 }
@@ -591,10 +616,20 @@ function removePos(pi) {
   renderSetup();
 }
 
+function defaultTaskData() {
+  return {
+    notes: '', physicalRating: '', psychRating: '',
+    physical: { bending:'NA',twisting:'NA',squatting:'NA',singleArmAbove:'NA',singleArmBelow:'NA',bothArmsAbove:'NA',bothArmsBelow:'NA',gripping:'NA',standing:'NA',walking:'NA',climbing:'NA',sitting:'NA',liftingControl:'' },
+    lifting: { pp_gt15:'NA',pp_11_15:'NA',pp_6_10:'NA',pp_2_5:'NA',pp_lt2:'NA',pp_min:'',oh_gt15:'NA',oh_11_15:'NA',oh_6_10:'NA',oh_2_5:'NA',oh_lt2:'NA',oh_min:'',wl_gt15:'NA',wl_11_15:'NA',wl_6_10:'NA',wl_2_5:'NA',wl_lt2:'NA',wl_min:'',gl_gt15:'NA',gl_11_15:'NA',gl_6_10:'NA',gl_2_5:'NA',gl_lt2:'NA',gl_min:'' },
+    psych: { stakeholder:'NA',followInstruction:'NA',autonomous:'NA',fatigue:'NA',workingMemory:'NA',longTermMemory:'NA',harmfulBehaviours:'NA',traumaticEvents:'NA',isolation:'NA',jobDemands:'NA',workplaceEnv:'NA' },
+    env: {}, photos: []
+  };
+}
+
 function addTask(pi) {
   const pos = cur.positions[pi];
   if (pos.tasks.length >= 25) { alert('Maximum 25 tasks per position.'); return; }
-  pos.tasks.push({ id: 'task_' + Date.now(), name: '', completed: false, data: {} });
+  pos.tasks.push({ id: 'task_' + Date.now(), name: '', completed: false, data: defaultTaskData() });
   saveAll();
   renderSetup();
 }
@@ -623,7 +658,8 @@ function renderAssessTask() {
 
   // Header
   document.getElementById('assess-pos-label').textContent = pos.title;
-  document.getElementById('assess-task-label').textContent = `${curPosIdx+1}.${curTaskIdx+1}  ${task.name}`;
+  document.getElementById('assess-task-num').textContent = `${curPosIdx+1}.${curTaskIdx+1}`;
+  document.getElementById('assess-task-label').value = task.name;
   buildTaskJumpDropdown();
 
   // Progress
@@ -632,6 +668,10 @@ function renderAssessTask() {
   const pct = total > 0 ? Math.round(done/total*100) : 0;
   document.getElementById('assess-prog-fill').style.width = pct + '%';
   document.getElementById('assess-progress-label').textContent = `${done}/${total}`;
+
+  const physRec = calcPhysical(d), psychRec = calcPsych(d);
+  const finalPhys = d.physicalRating || physRec;
+  const finalPsych = d.psychRating || psychRec;
 
   // Build form
   document.getElementById('assess-body').innerHTML = `
@@ -651,27 +691,50 @@ function renderAssessTask() {
       </div>
     </div>
 
-    <!-- AUTO RATINGS -->
+    <!-- TASK NARRATIVE (moved to top) -->
     <div class="card">
-      <div class="card-hdr" onclick="toggleCard(this)" style="background:#1e3a5f;">
-        ⚡ Auto-Calculated Ratings <span class="chevron">▼</span>
-      </div>
+      <div class="card-hdr" onclick="toggleCard(this)">📝 Task Narrative &amp; Notes <span class="chevron">▼</span></div>
       <div class="card-body" style="padding:14px 16px;">
-        <div class="rating-panel">
-          <div class="rating-item">
-            <div class="lbl">Physical Rating</div>
-            <div id="r-physical">${physBadge(calcPhysical(d))}</div>
-            <div id="r-physical-note" style="font-size:11px;color:#9ca3af;margin-top:4px;">${physNote(calcPhysical(d))}</div>
+        <textarea rows="5" oninput="sf('notes',this.value)"
+          style="width:100%;border:1.5px solid #d1d5db;border-radius:8px;padding:10px;font-size:14px;"
+          placeholder="Describe the task: how it is performed, equipment used, duration, observations, any special considerations...">${esc(d.notes||'')}</textarea>
+      </div>
+    </div>
+
+    <!-- TASK RATINGS (recommendation + user override) -->
+    <div class="card">
+      <div class="card-hdr" onclick="toggleCard(this)">⚡ Task Ratings <span class="chevron">▼</span></div>
+      <div class="card-body" style="padding:14px 16px;">
+        <p style="font-size:11px;color:#6b7280;margin:0 0 12px;">Ratings are auto-calculated from the Lifting and Psychosocial sections. You can override the final rating using the dropdowns.</p>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+          <div>
+            <div style="font-size:11px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Physical Rating</div>
+            <div style="font-size:11px;color:#6b7280;margin-bottom:3px;">Recommended:</div>
+            <div id="r-physical">${physBadge(physRec)}</div>
+            <div id="r-physical-note" style="font-size:10px;color:#9ca3af;margin:4px 0 8px;">${physNote(physRec)}</div>
+            <div style="font-size:11px;color:#6b7280;margin-bottom:4px;">Final rating (your decision):</div>
+            <select class="rating-final-sel" onchange="sf('physicalRating',this.value);updateRatings();">
+              <option value="" ${!d.physicalRating?'selected':''}>— Use recommended —</option>
+              <option value="HEAVY" ${d.physicalRating==='HEAVY'?'selected':''}>⬛ Heavy</option>
+              <option value="MEDIUM" ${d.physicalRating==='MEDIUM'?'selected':''}>◧ Medium</option>
+              <option value="LIGHT" ${d.physicalRating==='LIGHT'?'selected':''}>□ Light</option>
+            </select>
+            <div style="margin-top:8px;font-size:12px;font-weight:600;">Final: <span id="r-physical-final">${physBadge(finalPhys)}</span></div>
           </div>
-          <div class="rating-item">
-            <div class="lbl">Psychosocial Rating</div>
-            <div id="r-psych">${psychBadge(calcPsych(d))}</div>
-            <div id="r-psych-note" style="font-size:11px;color:#9ca3af;margin-top:4px;">${psychNote(calcPsych(d))}</div>
+          <div>
+            <div style="font-size:11px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Psychosocial Rating</div>
+            <div style="font-size:11px;color:#6b7280;margin-bottom:3px;">Recommended:</div>
+            <div id="r-psych">${psychBadge(psychRec)}</div>
+            <div id="r-psych-note" style="font-size:10px;color:#9ca3af;margin:4px 0 8px;">${psychNote(psychRec)}</div>
+            <div style="font-size:11px;color:#6b7280;margin-bottom:4px;">Final rating (your decision):</div>
+            <select class="rating-final-sel" onchange="sf('psychRating',this.value);updateRatings();">
+              <option value="" ${!d.psychRating?'selected':''}>— Use recommended —</option>
+              <option value="HIGH" ${d.psychRating==='HIGH'?'selected':''}>⚠ High Risk</option>
+              <option value="LOW" ${d.psychRating==='LOW'?'selected':''}>✓ Low Risk</option>
+            </select>
+            <div style="margin-top:8px;font-size:12px;font-weight:600;">Final: <span id="r-psych-final">${psychBadge(finalPsych)}</span></div>
           </div>
         </div>
-        <p style="font-size:11px;color:#d97706;margin:10px 0 0;background:#fef3c7;padding:8px 10px;border-radius:6px;">
-          ⚠ Ratings auto-update as you complete the Lifting and Psychosocial sections below. Review before marking complete.
-        </p>
       </div>
     </div>
 
@@ -765,6 +828,7 @@ function renderAssessTask() {
     <div class="card">
       <div class="card-hdr closed" onclick="toggleCard(this)">4 · Environmental Conditions <span class="chevron" style="transform:rotate(-90deg);">▼</span></div>
       <div class="card-body" style="padding:10px 16px; display:none;">
+        <button onclick="copyEnvFromPrevious()" style="background:#eff6ff;color:#1d4ed8;border:1.5px solid #bfdbfe;border-radius:8px;padding:7px 14px;font-size:12px;font-weight:600;cursor:pointer;margin-bottom:12px;width:100%;">⬆ Copy environmental conditions from previous task</button>
         <div class="section-subhdr">Work Location</div>
         ${cb('Indoor','env.indoor',d)}
         ${cb('Outdoor','env.outdoor',d)}
@@ -824,17 +888,11 @@ function renderAssessTask() {
         <div class="photo-grid" id="photo-grid">
           ${buildPhotoGrid(d.photos||[])}
         </div>
-        <p style="font-size:11px;color:#9ca3af;margin:10px 0 0;">Tap the camera to take a photo. Max 10 per task.</p>
-      </div>
-    </div>
-
-    <!-- TASK NOTES -->
-    <div class="card">
-      <div class="card-hdr closed" onclick="toggleCard(this)">📝 Task Narrative &amp; Notes <span class="chevron" style="transform:rotate(-90deg);">▼</span></div>
-      <div class="card-body" style="padding:14px 16px; display:none;">
-        <textarea rows="6" oninput="sf('notes',this.value)"
-          style="width:100%;border:1.5px solid #d1d5db;border-radius:8px;padding:10px;font-size:14px;"
-          placeholder="Describe the task: how it is performed, equipment used, duration, observations, any special considerations...">${esc(d.notes||'')}</textarea>
+        <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;align-items:center;">
+          <p style="font-size:11px;color:#9ca3af;margin:0;flex:1;">Tap 📷 to add photos. Max 10 per task.</p>
+          <button onclick="sharePhotos()" style="background:#eff6ff;color:#1d4ed8;border:1.5px solid #bfdbfe;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:600;cursor:pointer;">📤 Share / Save Photos</button>
+        </div>
+        <p style="font-size:10px;color:#d97706;margin:8px 0 0;background:#fef3c7;padding:7px 10px;border-radius:6px;">⚠ Photos are stored on this device only. Use Share to email or save to camera roll.</p>
       </div>
     </div>
   `;
@@ -1090,12 +1148,103 @@ function updateRatings() {
   const task = cur.positions[curPosIdx].tasks[curTaskIdx];
   const d = task.data || {};
   const phys = calcPhysical(d), psy = calcPsych(d);
+  // Update recommended badges
   const pEl = document.getElementById('r-physical'), psEl = document.getElementById('r-psych');
   const pnEl = document.getElementById('r-physical-note'), psnEl = document.getElementById('r-psych-note');
   if (pEl) pEl.innerHTML = physBadge(phys);
   if (psEl) psEl.innerHTML = psychBadge(psy);
   if (pnEl) pnEl.textContent = physNote(phys);
   if (psnEl) psnEl.textContent = psychNote(psy);
+  // Update final badges (uses override if set, else recommended)
+  const pfEl = document.getElementById('r-physical-final'), psfEl = document.getElementById('r-psych-final');
+  if (pfEl) pfEl.innerHTML = physBadge(d.physicalRating || phys);
+  if (psfEl) psfEl.innerHTML = psychBadge(d.psychRating || psy);
+}
+
+// ── New in-assessment actions ──────────────────────────────────────────────────
+function updateCurrentTaskName(val) {
+  cur.positions[curPosIdx].tasks[curTaskIdx].name = val;
+  saveAll();
+  buildTaskJumpDropdown();
+}
+
+function addTaskInAssess() {
+  const pos = cur.positions[curPosIdx];
+  if (!pos) return;
+  if (pos.tasks.length >= 25) { alert('Maximum 25 tasks per position.'); return; }
+  const name = prompt('Enter new task name:');
+  if (!name || !name.trim()) return;
+  pos.tasks.push({ id: 'task_' + Date.now(), name: name.trim(), completed: false, data: defaultTaskData() });
+  saveCurToAll();
+  curTaskIdx = pos.tasks.length - 1;
+  renderAssessTask();
+  window.scrollTo(0, 0);
+}
+
+function addPositionInAssess() {
+  if (cur.positions.length >= 20) { alert('Maximum 20 positions per assessment.'); return; }
+  const title = prompt('Enter new position title:');
+  if (!title || !title.trim()) return;
+  const taskName = prompt('Enter the first task name for this position:');
+  if (!taskName || !taskName.trim()) return;
+  cur.positions.push({ id: 'pos_' + Date.now(), title: title.trim(), tasks: [{ id: 'task_' + Date.now(), name: taskName.trim(), completed: false, data: defaultTaskData() }] });
+  saveCurToAll();
+  curPosIdx = cur.positions.length - 1;
+  curTaskIdx = 0;
+  renderAssessTask();
+  window.scrollTo(0, 0);
+}
+
+function manualSaveWithFeedback() {
+  saveCurToAll();
+  const btn = document.getElementById('save-now-btn');
+  if (btn) { btn.textContent = '✓ Saved'; setTimeout(() => { btn.textContent = '💾 Save'; }, 1800); }
+}
+
+function copyEnvFromPrevious() {
+  const flat = [];
+  (cur.positions||[]).forEach((p,pi) => (Array.isArray(p.tasks)?p.tasks:[]).forEach((t,ti) => flat.push({pi,ti})));
+  const cur_i = flat.findIndex(f => f.pi===curPosIdx && f.ti===curTaskIdx);
+  if (cur_i <= 0) { alert('No previous task to copy from.'); return; }
+  const prev = flat[cur_i - 1];
+  const prevData = cur.positions[prev.pi].tasks[prev.ti].data || {};
+  if (!prevData.env || Object.keys(prevData.env).length === 0) { alert('The previous task has no environmental conditions recorded.'); return; }
+  const task = cur.positions[curPosIdx].tasks[curTaskIdx];
+  if (!task.data) task.data = {};
+  task.data.env = JSON.parse(JSON.stringify(prevData.env));
+  saveAll();
+  renderAssessTask();
+  // Scroll to open env card
+  setTimeout(() => {
+    const cards = document.querySelectorAll('.card-hdr');
+    cards.forEach(hdr => { if (hdr.textContent.includes('Environmental')) { if (hdr.classList.contains('closed')) toggleCard(hdr); hdr.scrollIntoView({behavior:'smooth'}); } });
+  }, 100);
+}
+
+async function sharePhotos() {
+  const task = cur.positions[curPosIdx].tasks[curTaskIdx];
+  const photos = (task.data && task.data.photos) || [];
+  if (photos.length === 0) { alert('No photos to share for this task.'); return; }
+  if (navigator.share) {
+    try {
+      const files = await Promise.all(photos.map(async (dataUrl, i) => {
+        const resp = await fetch(dataUrl);
+        const blob = await resp.blob();
+        return new File([blob], `${(task.name||'task').replace(/[^\w\s]/g,'').trim().replace(/\s+/g,'_')}_photo_${i+1}.jpg`, { type: 'image/jpeg' });
+      }));
+      if (navigator.canShare && navigator.canShare({ files })) {
+        await navigator.share({ files, title: `JTA Photos – ${task.name}` });
+        return;
+      }
+    } catch(e) { if (e.name === 'AbortError') return; }
+  }
+  // Fallback: trigger download for each photo
+  photos.forEach((dataUrl, i) => {
+    const a = document.createElement('a');
+    a.href = dataUrl;
+    a.download = `${(task.name||'task').replace(/[^\w\s]/g,'').trim().replace(/\s+/g,'_')}_photo_${i+1}.jpg`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  });
 }
 
 // ── Photos ─────────────────────────────────────────────────────────────────────
@@ -1205,17 +1354,17 @@ function renderSummary() {
       </div>
     </div>
 
-    <!-- Per-position tables -->
+    <!-- Per-position tables (start collapsed to reduce scrolling) -->
     ${cur.positions.map((pos, pi) => {
       const posTasks = Array.isArray(pos.tasks) ? pos.tasks : [];
       const posDone = posTasks.filter(t=>t&&t.completed).length;
       return `
         <div class="card">
-          <div class="card-hdr" onclick="toggleCard(this)">
+          <div class="card-hdr closed" onclick="toggleCard(this)">
             📌 ${esc(pos.title)} &nbsp;<span style="font-size:12px;opacity:0.75;">(${posDone}/${posTasks.length} complete)</span>
-            <span class="chevron">▼</span>
+            <span class="chevron" style="transform:rotate(-90deg);">▼</span>
           </div>
-          <div class="card-body" style="padding:0;">
+          <div class="card-body" style="padding:0;display:none;">
             <div style="overflow-x:auto;">
               <table class="sum-table">
                 <thead>
@@ -1230,13 +1379,14 @@ function renderSummary() {
                 </thead>
                 <tbody>
                   ${posTasks.map((task, ti) => {
-                    const phys = calcPhysical(task.data||{});
-                    const psy = calcPsych(task.data||{});
+                    const d = task.data || {};
+                    const finalPhys = d.physicalRating || calcPhysical(d);
+                    const finalPsych = d.psychRating || calcPsych(d);
                     return `<tr>
                       <td style="color:#9ca3af;font-size:12px;">${pi+1}.${ti+1}</td>
                       <td style="font-weight:${task.completed?'600':'400'};color:${task.completed?'#111':'#9ca3af'};">${esc(task.name)}</td>
-                      <td>${physBadge(phys)}</td>
-                      <td>${psychBadge(psy)}</td>
+                      <td>${physBadge(finalPhys)}</td>
+                      <td>${psychBadge(finalPsych)}</td>
                       <td class="no-print" style="font-size:12px;">${task.completed?'<span style="color:#059669;">✓</span>':'<span style="color:#d97706;">○</span>'}</td>
                       <td class="no-print">
                         <button class="btn btn-outline btn-sm" style="padding:5px 10px;font-size:12px;" onclick="jumpTo(${pi},${ti})">Edit</button>
@@ -1249,6 +1399,17 @@ function renderSummary() {
           </div>
         </div>`;
     }).join('')}
+
+    <!-- GENERAL COMMENTS -->
+    <div class="card">
+      <div class="card-hdr" onclick="toggleCard(this)">💬 General Observations &amp; Recommendations <span class="chevron">▼</span></div>
+      <div class="card-body" style="padding:14px 16px;">
+        <p style="font-size:12px;color:#6b7280;margin:0 0 10px;">Record any overall observations, recommendations, or follow-up actions for this assessment.</p>
+        <textarea rows="6" oninput="cur.generalComments=this.value;saveAll();"
+          style="width:100%;border:1.5px solid #d1d5db;border-radius:8px;padding:10px;font-size:14px;"
+          placeholder="e.g. Overall risk profile, recommended controls, referrals, follow-up actions, SME notes...">${esc(cur.generalComments||'')}</textarea>
+      </div>
+    </div>
 
     <!-- Export Panel -->
     <div class="card no-print">
@@ -1300,7 +1461,7 @@ function exportCSV() {
     'Harmful Behaviours','Traumatic Events','Work Remotely / Isolation',
     'Job Demands','Workplace Environment',
     // Ratings
-    'Physical Rating','Psych Rating',
+    'Physical Rating (Recommended)','Physical Rating (Final)','Psych Rating (Recommended)','Psych Rating (Final)',
     // Env: location
     'Indoor','Outdoor','Mixed','Confined Spaces','Elevated Surfaces',
     // Env: surfaces
@@ -1316,7 +1477,7 @@ function exportCSV() {
     // Env: patterns
     'Hours/Week','Shift Length (hrs)','Shift Type','Night Shift','Rotating Roster',
     'Breaks','Peak Periods','Env Comments',
-    'Task Notes','Photo Count'
+    'Task Notes','General Comments','Photo Count'
   ];
 
   const rows = [headers];
@@ -1328,6 +1489,7 @@ function exportCSV() {
       const p = d.psych || {};
       const e = d.env || {};
       const yb = v => v ? 'Y' : '';
+      const physRec = calcPhysical(d), psychRec = calcPsych(d);
       rows.push([
         s.org, s.site, s.address, s.assessor, s.qualification, s.date,
         pos.title, `${pi+1}.${ti+1}`, task.name, task.completed?'Yes':'No',
@@ -1343,7 +1505,7 @@ function exportCSV() {
         p.fatigue||'', p.workingMemory||'', p.longTermMemory||'',
         p.harmfulBehaviours||'', p.traumaticEvents||'', p.isolation||'',
         p.jobDemands||'', p.workplaceEnv||'',
-        calcPhysical(d), calcPsych(d),
+        physRec, d.physicalRating||physRec, psychRec, d.psychRating||psychRec,
         yb(e.indoor), yb(e.outdoor), yb(e.mixed), yb(e.confined), yb(e.elevated),
         yb(e.flat), yb(e.uneven), yb(e.inclines), yb(e.slippery), yb(e.wet),
         yb(e.ambient), yb(e.hot), yb(e.cold), yb(e.sunlight), yb(e.wind),
@@ -1352,7 +1514,7 @@ function exportCSV() {
         yb(e.chemicals), yb(e.dust), yb(e.respiratory), yb(e.biological), yb(e.uv),
         e.hoursPerWeek||'', e.shiftLength||'', e.shiftType||'',
         e.nightShift||'', e.rotating||'', e.breaks||'', e.peakPeriods||'', e.comments||'',
-        d.notes||'', (d.photos||[]).length
+        d.notes||'', cur.generalComments||'', (d.photos||[]).length
       ]);
     });
   });
@@ -1423,11 +1585,21 @@ function manualSync() {
   syncFromCloud().then(() => renderHome());
 }
 
+function manualSync() {
+  syncFromCloud().then(() => renderHome());
+}
+
 // ── Init ───────────────────────────────────────────────────────────────────────
 loadAll();
-renderHome();
+// If a previous session was active, go straight to that assessment's summary
+if (cur && cur.positions && cur.positions.length > 0) {
+  renderSummary();
+  showScreen('summary');
+} else {
+  renderHome();
+}
 checkOpenInSafari();
-syncFromCloud().then(() => renderHome()); // Silent background sync on load
+syncFromCloud().then(() => { if (!cur) renderHome(); }); // Background sync
 </script>
 </body>
 </html>
