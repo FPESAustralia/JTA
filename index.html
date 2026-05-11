@@ -898,7 +898,7 @@ function renderAssessTask() {
           onclick="document.getElementById('photo-file-input').click()">
           <span style="font-size:26px;">📂</span>
           <p>Drag &amp; drop photos here — or tap to browse files<br><span style="font-size:10px;">(Google Drive, Files app, Downloads — any image file)</span></p>
-          <input type="file" id="photo-file-input" accept="image/*" multiple style="display:none;" onchange="addPhotosFromFiles(this)">
+          <input type="file" id="photo-file-input" accept="image/*,.heic,.heif,.HEIC,.HEIF" multiple style="display:none;" onchange="addPhotosFromFiles(this)">
         </div>
 
         <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;align-items:center;">
@@ -1273,15 +1273,24 @@ function buildPhotoGrid(photos) {
       <label style="aspect-ratio:1;border:2px dashed #d1d5db;border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;background:#f9fafb;gap:4px;" title="Open camera">
         <span style="font-size:26px;">📷</span>
         <span style="font-size:9px;color:#9ca3af;text-align:center;">Camera</span>
-        <input type="file" accept="image/*" capture="environment" style="display:none;" onchange="addPhoto(this)">
+        <input type="file" accept="image/*,.heic,.heif,.HEIC,.HEIF" capture="environment" style="display:none;" onchange="addPhoto(this)">
       </label>`;
   }
   return html;
 }
 
+// HEIC/HEIF files from Apple devices often arrive with an empty or wrong MIME type.
+// This helper accepts a file if its MIME type is image/* OR its extension looks like an image.
+function isImageFile(file) {
+  if (!file) return false;
+  if (file.type && file.type.startsWith('image/')) return true;
+  const ext = (file.name || '').split('.').pop().toLowerCase();
+  return ['jpg','jpeg','png','gif','bmp','webp','heic','heif','tiff','tif','avif'].includes(ext);
+}
+
 // Core image processing — compresses and saves one File object
 function processImageFile(file) {
-  if (!file || !file.type.startsWith('image/')) return;
+  if (!isImageFile(file)) return;
   const task = cur.positions[curPosIdx].tasks[curTaskIdx];
   if (!task.data) task.data = {};
   if (!task.data.photos) task.data.photos = [];
@@ -1337,8 +1346,8 @@ function photoDragLeave(e) {
 function photoDrop(e) {
   e.preventDefault();
   document.getElementById('photo-drop-zone').classList.remove('drag-over');
-  const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
-  if (files.length === 0) { alert('No image files detected. Please drop JPG, PNG, or HEIC photos.'); return; }
+  const files = Array.from(e.dataTransfer.files).filter(f => isImageFile(f));
+  if (files.length === 0) { alert('No image files detected. Please drop JPG, PNG, HEIC, or other image photos.'); return; }
   const task = cur.positions[curPosIdx].tasks[curTaskIdx];
   if (!task.data) task.data = {};
   if (!task.data.photos) task.data.photos = [];
