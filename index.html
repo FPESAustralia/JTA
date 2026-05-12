@@ -887,19 +887,28 @@ function renderAssessTask() {
     <!-- PHOTOS -->
     <div class="card">
       <div class="card-hdr closed" onclick="toggleCard(this)">📷 Photos <span class="chevron" style="transform:rotate(-90deg);">▼</span></div>
-      <div class="card-body" style="padding:14px 16px; display:none;">
+      <div class="card-body" style="padding:14px 16px; display:none;"
+        ondragover="photoDragOver(event)" ondragleave="photoDragLeave(event)" ondrop="photoDrop(event)">
         <div class="photo-grid" id="photo-grid">
           ${buildPhotoGrid(d.photos||[])}
         </div>
 
-        <!-- Drag & drop zone -->
-        <div class="drop-zone" id="photo-drop-zone"
-          ondragover="photoDragOver(event)" ondragleave="photoDragLeave(event)" ondrop="photoDrop(event)"
-          onclick="document.getElementById('photo-file-input').click()">
-          <span style="font-size:26px;">📂</span>
-          <p>Drag &amp; drop photos here — or tap to browse files<br><span style="font-size:10px;">(Google Drive, Files app, Downloads — any image file)</span></p>
+        <!-- Browse / drop zone -->
+        <label for="photo-file-input" style="display:block;margin-top:10px;cursor:pointer;">
+          <div style="background:#1a3558;color:white;border-radius:10px;padding:14px 16px;text-align:center;">
+            <div style="font-size:22px;margin-bottom:6px;">📂</div>
+            <div style="font-size:13px;font-weight:700;margin-bottom:3px;">Tap to add photos from files</div>
+            <div style="font-size:11px;opacity:0.75;">Google Drive · Files app · Downloads · Camera Roll</div>
+            <div style="font-size:10px;opacity:0.6;margin-top:3px;">Supports JPG, PNG, HEIC and more — select multiple at once</div>
+          </div>
           <input type="file" id="photo-file-input" accept="image/*,.heic,.heif,.HEIC,.HEIF" multiple style="display:none;" onchange="addPhotosFromFiles(this)">
+        </label>
+
+        <!-- Drag & drop (desktop) — hidden visually but still functional -->
+        <div id="photo-drop-zone" style="display:none;"
+          ondragover="photoDragOver(event)" ondragleave="photoDragLeave(event)" ondrop="photoDrop(event)">
         </div>
+        <div id="drag-hint" style="text-align:center;font-size:10px;color:#d1d5db;margin-top:6px;">Or drag &amp; drop photos onto this page (desktop)</div>
 
         <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;align-items:center;">
           <p style="font-size:11px;color:#9ca3af;margin:0;flex:1;">Max 10 photos per task.</p>
@@ -1281,6 +1290,7 @@ function buildPhotoGrid(photos) {
 
 // HEIC/HEIF files from Apple devices often arrive with an empty or wrong MIME type.
 // This helper accepts a file if its MIME type is image/* OR its extension looks like an image.
+// Checks by MIME type first, then file extension (HEIC often has blank type)
 function isImageFile(file) {
   if (!file) return false;
   if (file.type && file.type.startsWith('image/')) return true;
@@ -1288,16 +1298,19 @@ function isImageFile(file) {
   return ['jpg','jpeg','png','gif','bmp','webp','heic','heif','tiff','tif','avif'].includes(ext);
 }
 
-// Core image processing — compresses and saves one File object
+// Core image processing — compresses and saves one File object.
+// No hard type gate: we try to load whatever arrives and handle failure gracefully.
 function processImageFile(file) {
-  if (!isImageFile(file)) return;
+  if (!file) return;
   const task = cur.positions[curPosIdx].tasks[curTaskIdx];
   if (!task.data) task.data = {};
   if (!task.data.photos) task.data.photos = [];
-  if (task.data.photos.length >= 10) { alert('Maximum 10 photos per task reached.'); return; }
+  if (task.data.photos.length >= 10) return;
   const reader = new FileReader();
+  reader.onerror = () => console.warn('Could not read file:', file.name);
   reader.onload = e => {
     const img = new Image();
+    img.onerror = () => console.warn('Browser could not decode image (unsupported format?):', file.name);
     img.onload = () => {
       const canvas = document.createElement('canvas');
       let w = img.width, h = img.height;
@@ -1323,7 +1336,7 @@ function addPhoto(input) {
   if (input.files[0]) processImageFile(input.files[0]);
 }
 
-// File picker handler (supports multiple files selected at once)
+// File picker handler (multiple files)
 function addPhotosFromFiles(input) {
   const task = cur.positions[curPosIdx].tasks[curTaskIdx];
   if (!task.data) task.data = {};
@@ -1332,22 +1345,54 @@ function addPhotosFromFiles(input) {
   const files = Array.from(input.files).slice(0, remaining);
   if (input.files.length > remaining) alert(`Only ${remaining} more photo(s) can be added (max 10 per task). The first ${remaining} will be used.`);
   files.forEach(f => processImageFile(f));
-  input.value = ''; // reset so same files can be re-selected if needed
+  input.value = '';
 }
 
 // Drag & drop handlers
 function photoDragOver(e) {
   e.preventDefault();
-  document.getElementById('photo-drop-zone').classList.add('drag-over');
+  // Highlight the browse button area when dragging over (desktop)
+  const btn = document.querySelector('#photo-drop-zone + div + label > div, label[for=photo-file-input] > div');
+  if (btn) btn.style.outline = '3px dashed #60a5fa';
+  const hint = document.getElementById('drag-hint');
+  if (hint) hint.style.color = '#3b82f6';
 }
 function photoDragLeave(e) {
-  document.getElementById('photo-drop-zone').classList.remove('drag-over');
+  const btn = document.querySelector('label[for=photo-file-input] > div');
+  if (btn) btn.style.outline = '';
+  const hint = document.getElementById('drag-hint');
+  if (hint) hint.style.color = '#d1d5db';
 }
 function photoDrop(e) {
   e.preventDefault();
-  document.getElementById('photo-drop-zone').classList.remove('drag-over');
-  const files = Array.from(e.dataTransfer.files).filter(f => isImageFile(f));
-  if (files.length === 0) { alert('No image files detected. Please drop JPG, PNG, HEIC, or other image photos.'); return; }
+  const dz = document.getElementById('photo-drop-zone');
+  if (dz) dz.classList.remove('drag-over');
+
+  // Prefer dataTransfer.items (more reliable across browsers/iOS)
+  // Fall back to dataTransfer.files
+  let rawFiles = [];
+  if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
+    rawFiles = Array.from(e.dataTransfer.items)
+      .filter(item => item.kind === 'file')
+      .map(item => item.getAsFile())
+      .filter(Boolean);
+  }
+  if (rawFiles.length === 0 && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+    rawFiles = Array.from(e.dataTransfer.files);
+  }
+
+  if (rawFiles.length === 0) {
+    alert('No files detected in the drop. Try tapping the zone instead to browse and select files.');
+    return;
+  }
+
+  // Accept known image types; also accept files with no type info (HEIC often arrives this way)
+  const files = rawFiles.filter(f => isImageFile(f) || !f.type);
+  if (files.length === 0) {
+    alert('None of the dropped files appear to be images. Please use JPG, PNG, or HEIC photos.');
+    return;
+  }
+
   const task = cur.positions[curPosIdx].tasks[curTaskIdx];
   if (!task.data) task.data = {};
   if (!task.data.photos) task.data.photos = [];
