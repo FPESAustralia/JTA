@@ -333,7 +333,11 @@ function sanitiseAssessment(a) {
   a.positions.forEach(p => {
     if (!p) return;
     if (!Array.isArray(p.tasks)) p.tasks = [];
-    p.tasks.forEach(t => { if (!t.data) t.data = {}; });
+    p.tasks.forEach(t => {
+      if (!t.data) t.data = {};
+      // Migrate old 'complete' field to 'completed' (backwards compatibility)
+      if (t.completed === undefined && t.complete !== undefined) t.completed = t.complete;
+    });
   });
   return a;
 }
