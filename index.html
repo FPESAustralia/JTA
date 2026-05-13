@@ -243,14 +243,6 @@ let curTaskIdx = 0;
 const JSONBIN_KEY = '$2a$10$Z24VlPb.fJsOL3DilRp67uIe0.sF7qX/cLtXZJ8ZY9oIphhm4IiJu';
 const JSONBIN_ID  = '69e1d794856a68218942c47d';
 
-// ── Imgur photo cloud storage (optional) ───────────────────────────────────────
-// Sign up free at https://imgur.com/register, then go to https://api.imgur.com/oauth2/addclient
-// HOW TO GET YOUR KEY: Go to https://imgbb.com → Sign up (free) → click your avatar top-right
-// → Settings → API → Generate API key. Paste it between the quotes below.
-// When set, photos upload to imgBB on capture and are accessible from any device via cloud sync.
-// Leave blank to keep photos local-only (current default).
-const IMGBB_API_KEY = 'cdffdf2426de9773b6dc826772660b0f';
-
 // ── Persistence ────────────────────────────────────────────────────────────────
 function saveAll() {
   // Always sync cur into allAssessments before saving (prevents data loss on reload)
@@ -306,14 +298,10 @@ async function pushToCloud() {
 }
 
 function stripPhotos(assessment) {
-  // Keep Imgur URLs in cloud sync (they're tiny strings); strip local base64 blobs (too large)
+  // Photos stay local only (too large for cloud sync)
   const copy = JSON.parse(JSON.stringify(assessment));
   (copy.positions||[]).forEach(p =>
-    (p.tasks||[]).forEach(t => {
-      if (t.data && Array.isArray(t.data.photos)) {
-        t.data.photos = t.data.photos.filter(ph => ph && !ph.startsWith('data:'));
-      }
-    })
+    (p.tasks||[]).forEach(t => { if (t.data) delete t.data.photos; })
   );
   return copy;
 }
@@ -362,8 +350,7 @@ async function syncFromCloud() {
       data.forEach(a => { if (a && a.id) cloudMap[a.id] = sanitiseAssessment(a); });
       const localOnly = allAssessments.filter(a => !cloudMap[a.id]);
       allAssessments = [...Object.values(cloudMap), ...localOnly];
-      // Merge photos: cloud imgBB URLs take priority; also restore any local base64
-      // (offline fallback photos that never made it to imgBB) so they aren't lost.
+      // Restore photos from localStorage for assessments we have locally
       const localMap = {};
       try {
         const raw = localStorage.getItem('jta_all');
@@ -376,13 +363,7 @@ async function syncFromCloud() {
           (p.tasks||[]).forEach((t, ti) => {
             const lp = local.positions && local.positions[pi];
             const lt = lp && lp.tasks && lp.tasks[ti];
-            if (!lt || !lt.data || !lt.data.photos) return;
-            if (!t.data) t.data = {};
-            // Cloud photos are imgBB URLs — keep them as primary source of truth.
-            // Append any local base64 photos that failed to upload (offline fallback).
-            const cloudPhotos = (t.data.photos || []);
-            const localBase64 = lt.data.photos.filter(ph => ph && ph.startsWith('data:'));
-            t.data.photos = [...cloudPhotos, ...localBase64];
+            if (lt && lt.data && lt.data.photos) t.data.photos = lt.data.photos;
           });
         });
       });
@@ -796,7 +777,6 @@ function renderAssessTask() {
     <div class="card">
       <div class="card-hdr" onclick="toggleCard(this)">3 · Cognitive &amp; Psychosocial Demands <span class="chevron">▼</span></div>
       <div class="card-body" style="padding:10px 16px;">
-        <button onclick="copyPsychFromPrevious()" style="background:#eff6ff;color:#1d4ed8;border:1.5px solid #bfdbfe;border-radius:8px;padding:7px 14px;font-size:12px;font-weight:600;cursor:pointer;margin-bottom:12px;width:100%;">⬆ Copy cognitive &amp; psychosocial demands from previous task</button>
         ${fr('Stakeholder / Public Interaction','psych.stakeholder',d,
           `Capture frequency of interactions with patients, clients, customers, or the public. Consider: customer-facing duties, managing complaints or conflict, communicating with multiple stakeholders, and the emotional or behavioural demands of those interactions.`)}
         ${fr('Follow Instruction','psych.followInstruction',d,
@@ -913,15 +893,22 @@ function renderAssessTask() {
           ${buildPhotoGrid(d.photos||[])}
         </div>
 
-        <!-- Browse button — uses a dynamically created input to avoid iOS double-fire bug -->
-        <button type="button" onclick="openPhotoPicker()"
-          style="display:block;width:100%;margin-top:10px;background:#1a3558;color:white;border:none;border-radius:10px;padding:14px 16px;text-align:center;cursor:pointer;">
-          <div style="font-size:22px;margin-bottom:6px;">📂</div>
-          <div style="font-size:13px;font-weight:700;margin-bottom:3px;">Tap to add photos from files</div>
-          <div style="font-size:11px;opacity:0.75;">Google Drive · Files app · Downloads · Camera Roll</div>
-          <div style="font-size:10px;opacity:0.6;margin-top:3px;">Supports JPG, PNG, HEIC and more — select multiple at once</div>
-        </button>
-        <div id="drag-hint" style="text-align:center;font-size:10px;color:#d1d5db;margin-top:6px;">Or drag &amp; drop photos here (desktop)</div>
+        <!-- Browse / drop zone -->
+        <label for="photo-file-input" style="display:block;margin-top:10px;cursor:pointer;">
+          <div style="background:#1a3558;color:white;border-radius:10px;padding:14px 16px;text-align:center;">
+            <div style="font-size:22px;margin-bottom:6px;">📂</div>
+            <div style="font-size:13px;font-weight:700;margin-bottom:3px;">Tap to add photos from files</div>
+            <div style="font-size:11px;opacity:0.75;">Google Drive · Files app · Downloads · Camera Roll</div>
+            <div style="font-size:10px;opacity:0.6;margin-top:3px;">Supports JPG, PNG, HEIC and more — select multiple at once</div>
+          </div>
+          <input type="file" id="photo-file-input" accept="image/*,.heic,.heif,.HEIC,.HEIF" multiple style="display:none;" onchange="addPhotosFromFiles(this)">
+        </label>
+
+        <!-- Drag & drop (desktop) — hidden visually but still functional -->
+        <div id="photo-drop-zone" style="display:none;"
+          ondragover="photoDragOver(event)" ondragleave="photoDragLeave(event)" ondrop="photoDrop(event)">
+        </div>
+        <div id="drag-hint" style="text-align:center;font-size:10px;color:#d1d5db;margin-top:6px;">Or drag &amp; drop photos onto this page (desktop)</div>
 
         <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;align-items:center;">
           <p style="font-size:11px;color:#9ca3af;margin:0;flex:1;">Max 10 photos per task.</p>
@@ -1256,25 +1243,6 @@ function copyEnvFromPrevious() {
   }, 100);
 }
 
-function copyPsychFromPrevious() {
-  const flat = [];
-  (cur.positions||[]).forEach((p,pi) => (Array.isArray(p.tasks)?p.tasks:[]).forEach((t,ti) => flat.push({pi,ti})));
-  const cur_i = flat.findIndex(f => f.pi===curPosIdx && f.ti===curTaskIdx);
-  if (cur_i <= 0) { alert('No previous task to copy from.'); return; }
-  const prev = flat[cur_i - 1];
-  const prevData = cur.positions[prev.pi].tasks[prev.ti].data || {};
-  if (!prevData.psych || Object.keys(prevData.psych).length === 0) { alert('The previous task has no cognitive & psychosocial demands recorded.'); return; }
-  const task = cur.positions[curPosIdx].tasks[curTaskIdx];
-  if (!task.data) task.data = {};
-  task.data.psych = JSON.parse(JSON.stringify(prevData.psych));
-  saveAll();
-  renderAssessTask();
-  setTimeout(() => {
-    const cards = document.querySelectorAll('.card-hdr');
-    cards.forEach(hdr => { if (hdr.textContent.includes('Cognitive')) { if (hdr.classList.contains('closed')) toggleCard(hdr); hdr.scrollIntoView({behavior:'smooth'}); } });
-  }, 100);
-}
-
 async function sharePhotos() {
   const task = cur.positions[curPosIdx].tasks[curTaskIdx];
   const photos = (task.data && task.data.photos) || [];
@@ -1303,17 +1271,11 @@ async function sharePhotos() {
 
 // ── Photos ─────────────────────────────────────────────────────────────────────
 function buildPhotoGrid(photos) {
-  let html = photos.map((p,i) => p === '__loading__'
-    ? `<div style="aspect-ratio:1;border-radius:8px;background:#f3f4f6;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;">
-        <span style="font-size:20px;">⏳</span>
-        <span style="font-size:9px;color:#9ca3af;">${IMGBB_API_KEY ? 'Uploading…' : 'Processing…'}</span>
-       </div>`
-    : `<div class="photo-item">
-        <img src="${p}" onclick="viewPhoto(${i})" alt="Task photo ${i+1}">
-        ${p.startsWith('http') ? '<span style="position:absolute;bottom:3px;left:3px;background:rgba(5,150,105,0.85);color:white;font-size:8px;border-radius:4px;padding:1px 4px;">☁</span>' : ''}
-        <button class="photo-del" onclick="removePhoto(${i})">×</button>
-       </div>`
-  ).join('');
+  let html = photos.map((p,i) => `
+    <div class="photo-item">
+      <img src="${p}" onclick="viewPhoto(${i})" alt="Task photo ${i+1}">
+      <button class="photo-del" onclick="removePhoto(${i})">×</button>
+    </div>`).join('');
   if (photos.length < 10) {
     // Camera button (takes a new photo directly)
     html += `
@@ -1338,46 +1300,18 @@ function isImageFile(file) {
 
 // Core image processing — compresses and saves one File object.
 // No hard type gate: we try to load whatever arrives and handle failure gracefully.
-async function uploadToImgBB(dataUrl) {
-  const base64 = dataUrl.split(',')[1];
-  const form = new FormData();
-  form.append('image', base64);
-  const resp = await fetch('https://api.imgbb.com/1/upload?key=' + IMGBB_API_KEY, {
-    method: 'POST',
-    body: form
-  });
-  const json = await resp.json();
-  if (json.success) return json.data.url;
-  throw new Error(json.error?.message || 'imgBB upload failed');
-}
-
 function processImageFile(file) {
   if (!file) return;
   const task = cur.positions[curPosIdx].tasks[curTaskIdx];
   if (!task.data) task.data = {};
   if (!task.data.photos) task.data.photos = [];
   if (task.data.photos.length >= 10) return;
-
-  // Add a placeholder so the user sees something loading immediately
-  const placeholderIdx = task.data.photos.length;
-  task.data.photos.push('__loading__');
-  const grid = document.getElementById('photo-grid');
-  if (grid) grid.innerHTML = buildPhotoGrid(task.data.photos);
-
   const reader = new FileReader();
-  reader.onerror = () => {
-    task.data.photos.splice(placeholderIdx, 1);
-    if (grid) grid.innerHTML = buildPhotoGrid(task.data.photos);
-    console.warn('Could not read file:', file.name);
-  };
+  reader.onerror = () => console.warn('Could not read file:', file.name);
   reader.onload = e => {
     const img = new Image();
-    img.onerror = () => {
-      task.data.photos.splice(placeholderIdx, 1);
-      if (grid) grid.innerHTML = buildPhotoGrid(task.data.photos);
-      console.warn('Browser could not decode image:', file.name);
-    };
-    img.onload = async () => {
+    img.onerror = () => console.warn('Browser could not decode image (unsupported format?):', file.name);
+    img.onload = () => {
       const canvas = document.createElement('canvas');
       let w = img.width, h = img.height;
       const MAX = 1200;
@@ -1387,25 +1321,9 @@ function processImageFile(file) {
       }
       canvas.width = w; canvas.height = h;
       canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.75);
-
-      if (IMGBB_API_KEY) {
-        try {
-          const imgbbUrl = await uploadToImgBB(dataUrl);
-          task.data.photos[placeholderIdx] = imgbbUrl;
-          setSyncStatus('📷 Photo saved to cloud', '#059669');
-          setTimeout(() => setSyncStatus('', ''), 3000);
-        } catch(err) {
-          console.warn('imgBB upload failed, storing locally:', err);
-          task.data.photos[placeholderIdx] = dataUrl;
-          setSyncStatus('⚠ Photo saved locally only', '#d97706');
-          setTimeout(() => setSyncStatus('', ''), 3000);
-        }
-      } else {
-        task.data.photos[placeholderIdx] = dataUrl; // Local only
-      }
-
+      task.data.photos.push(canvas.toDataURL('image/jpeg', 0.75));
       saveAll();
+      const grid = document.getElementById('photo-grid');
       if (grid) grid.innerHTML = buildPhotoGrid(task.data.photos);
     };
     img.src = e.target.result;
@@ -1418,35 +1336,15 @@ function addPhoto(input) {
   if (input.files[0]) processImageFile(input.files[0]);
 }
 
-// Opens a fresh file picker each time — avoids the iOS double-fire bug
-// that occurs when reusing a hidden input wired to a label
-function openPhotoPicker() {
-  const input = document.createElement('input');
-  input.type = 'file';
-  input.accept = 'image/*,.heic,.heif,.HEIC,.HEIF';
-  input.multiple = true;
-  input.style.display = 'none';
-  document.body.appendChild(input);
-  input.onchange = function() {
-    processFileList(Array.from(this.files));
-    document.body.removeChild(input);
-  };
-  input.click();
-}
-
-// Shared handler for both picker and drag-and-drop
-function processFileList(files) {
+// File picker handler (multiple files)
+function addPhotosFromFiles(input) {
   const task = cur.positions[curPosIdx].tasks[curTaskIdx];
   if (!task.data) task.data = {};
   if (!task.data.photos) task.data.photos = [];
   const remaining = 10 - (task.data.photos.length || 0);
-  if (files.length > remaining) alert(`Only ${remaining} more photo(s) can be added (max 10 per task). The first ${remaining} will be used.`);
-  files.slice(0, remaining).forEach(f => processImageFile(f));
-}
-
-// Legacy handler kept for the camera input onchange
-function addPhotosFromFiles(input) {
-  processFileList(Array.from(input.files));
+  const files = Array.from(input.files).slice(0, remaining);
+  if (input.files.length > remaining) alert(`Only ${remaining} more photo(s) can be added (max 10 per task). The first ${remaining} will be used.`);
+  files.forEach(f => processImageFile(f));
   input.value = '';
 }
 
@@ -1495,7 +1393,12 @@ function photoDrop(e) {
     return;
   }
 
-  processFileList(files);
+  const task = cur.positions[curPosIdx].tasks[curTaskIdx];
+  if (!task.data) task.data = {};
+  if (!task.data.photos) task.data.photos = [];
+  const remaining = 10 - (task.data.photos.length || 0);
+  files.slice(0, remaining).forEach(f => processImageFile(f));
+  if (files.length > remaining) alert(`Only ${remaining} photo(s) added — max 10 per task.`);
 }
 
 function removePhoto(idx) {
@@ -1810,6 +1713,10 @@ function manualSync() {
   syncFromCloud().then(() => renderHome());
 }
 
+function manualSync() {
+  syncFromCloud().then(() => renderHome());
+}
+
 // ── Init ───────────────────────────────────────────────────────────────────────
 loadAll();
 // If a previous session was active, go straight to that assessment's summary
@@ -1820,20 +1727,8 @@ if (cur && cur.positions && cur.positions.length > 0) {
   renderHome();
 }
 checkOpenInSafari();
-// Background sync on load — always refresh home after so new photos appear
-syncFromCloud().then(() => renderHome());
-
-// Re-sync whenever the app comes back into the foreground (e.g. switching tabs/devices)
-document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible') {
-    syncFromCloud().then(() => {
-      const active = document.querySelector('.screen.active');
-      if (active && active.id === 'home') renderHome();
-      if (active && active.id === 'summary') renderSummary();
-    });
-  }
-});
+syncFromCloud().then(() => { if (!cur) renderHome(); }); // Background sync
 </script>
 </body>
 </html>
-                                 
+                                                                 
