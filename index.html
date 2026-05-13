@@ -362,7 +362,8 @@ async function syncFromCloud() {
       data.forEach(a => { if (a && a.id) cloudMap[a.id] = sanitiseAssessment(a); });
       const localOnly = allAssessments.filter(a => !cloudMap[a.id]);
       allAssessments = [...Object.values(cloudMap), ...localOnly];
-      // Restore photos from localStorage for assessments we have locally
+      // Merge photos: cloud imgBB URLs take priority; also restore any local base64
+      // (offline fallback photos that never made it to imgBB) so they aren't lost.
       const localMap = {};
       try {
         const raw = localStorage.getItem('jta_all');
@@ -375,7 +376,13 @@ async function syncFromCloud() {
           (p.tasks||[]).forEach((t, ti) => {
             const lp = local.positions && local.positions[pi];
             const lt = lp && lp.tasks && lp.tasks[ti];
-            if (lt && lt.data && lt.data.photos) t.data.photos = lt.data.photos;
+            if (!lt || !lt.data || !lt.data.photos) return;
+            if (!t.data) t.data = {};
+            // Cloud photos are imgBB URLs — keep them as primary source of truth.
+            // Append any local base64 photos that failed to upload (offline fallback).
+            const cloudPhotos = (t.data.photos || []);
+            const localBase64 = lt.data.photos.filter(ph => ph && ph.startsWith('data:'));
+            t.data.photos = [...cloudPhotos, ...localBase64];
           });
         });
       });
@@ -1803,10 +1810,6 @@ function manualSync() {
   syncFromCloud().then(() => renderHome());
 }
 
-function manualSync() {
-  syncFromCloud().then(() => renderHome());
-}
-
 // ── Init ───────────────────────────────────────────────────────────────────────
 loadAll();
 // If a previous session was active, go straight to that assessment's summary
@@ -1817,8 +1820,20 @@ if (cur && cur.positions && cur.positions.length > 0) {
   renderHome();
 }
 checkOpenInSafari();
-syncFromCloud().then(() => { if (!cur) renderHome(); }); // Background sync
+// Background sync on load — always refresh home after so new photos appear
+syncFromCloud().then(() => renderHome());
+
+// Re-sync whenever the app comes back into the foreground (e.g. switching tabs/devices)
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
+    syncFromCloud().then(() => {
+      const active = document.querySelector('.screen.active');
+      if (active && active.id === 'home') renderHome();
+      if (active && active.id === 'summary') renderSummary();
+    });
+  }
+});
 </script>
 </body>
 </html>
-                                                                 
+                                 
